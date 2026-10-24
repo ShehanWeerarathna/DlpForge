@@ -1,0 +1,194 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DlpForge.App.ViewModels"
+             xmlns:m="using:DlpForge.Core.Models"
+             xmlns:svc="using:DlpForge.App.Services"
+             x:Class="DlpForge.App.Views.DownloadCardView"
+             x:DataType="vm:DownloadCardViewModel">
+
+  <Border Classes="panel" Padding="0" BoxShadow="0 8 32 0 #40000000">
+    <Grid RowDefinitions="Auto,*,Auto">
+
+      <!-- Header: what the link is -->
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="18,16,18,12">
+        <Border Width="176" Height="99" CornerRadius="6" ClipToBounds="True" Background="{DynamicResource PanelBorder}">
+          <Image svc:ImageLoader.Url="{Binding Thumbnail}" Stretch="UniformToFill" />
+        </Border>
+        <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Spacing="6">
+          <TextBlock Text="{Binding Title}" Classes="h2" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Subtitle}" Classes="subtle" />
+          <StackPanel Orientation="Horizontal" Spacing="0" Margin="0,6,0,0">
+            <RadioButton Classes="seg" GroupName="type" Content="Video" IsChecked="{Binding IsVideo, Mode=OneWay}"
+                         Command="{Binding SetTypeCommand}" CommandParameter="video" />
+            <RadioButton Classes="seg" GroupName="type" Content="Audio only" IsChecked="{Binding IsAudio, Mode=OneWay}"
+                         Command="{Binding SetTypeCommand}" CommandParameter="audio" />
+          </StackPanel>
+        </StackPanel>
+        <Button Grid.Column="2" VerticalAlignment="Top" Classes="icon" Content="✕" Command="{Binding CloseCommand}" ToolTip.Tip="Close (Esc)" />
+      </Grid>
+
+      <ScrollViewer Grid.Row="1" Padding="18,0,18,8">
+        <StackPanel Spacing="14">
+
+          <!-- Quality -->
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto">
+            <TextBlock Text="Quality" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <ComboBox MinWidth="200" ItemsSource="{Binding QualityChoices}" SelectedItem="{Binding SelectedQuality}"
+                        IsVisible="{Binding IsVideo}" IsEnabled="{Binding !UseSpecificFormat}" />
+              <ComboBox MinWidth="110" ItemsSource="{Binding VideoContainers}" SelectedItem="{Binding VideoContainer}"
+                        IsVisible="{Binding IsVideo}" ToolTip.Tip="File type the video is saved as" />
+              <ComboBox MinWidth="110" ItemsSource="{Binding AudioFormats}" SelectedItem="{Binding AudioFormat}"
+                        IsVisible="{Binding IsAudio}" ToolTip.Tip="Audio format (best keeps the original without converting)" />
+              <CheckBox Content="Pick an exact format" IsChecked="{Binding UseSpecificFormat}"
+                        IsVisible="{Binding HasFormats}" />
+            </StackPanel>
+          </Grid>
+
+          <!-- Format table -->
+          <Border Classes="panel" IsVisible="{Binding UseSpecificFormat}" MaxHeight="230">
+            <Grid RowDefinitions="Auto,*">
+              <Grid ColumnDefinitions="70,110,70,60,*,90,90" Margin="12,6">
+                <TextBlock Classes="subtle" Text="ID" />
+                <TextBlock Grid.Column="1" Classes="subtle" Text="Resolution" />
+                <TextBlock Grid.Column="2" Classes="subtle" Text="Type" />
+                <TextBlock Grid.Column="3" Classes="subtle" Text="FPS" />
+                <TextBlock Grid.Column="4" Classes="subtle" Text="Codecs" />
+                <TextBlock Grid.Column="5" Classes="subtle" Text="Kind" />
+                <TextBlock Grid.Column="6" Classes="subtle" Text="Size" />
+              </Grid>
+              <ListBox Grid.Row="1" ItemsSource="{Binding VisibleFormats}" SelectedItem="{Binding SelectedFormat}" Background="Transparent">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem"><Setter Property="Padding" Value="12,4" /></Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="m:FormatInfo">
+                    <Grid ColumnDefinitions="70,110,70,60,*,90,90">
+                      <TextBlock Text="{Binding FormatId}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Resolution}" />
+                      <TextBlock Grid.Column="2" Text="{Binding Extension}" />
+                      <TextBlock Grid.Column="3" Text="{Binding Fps}" />
+                      <TextBlock Grid.Column="4" Text="{Binding Codecs}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="5" Text="{Binding Kind}" />
+                      <TextBlock Grid.Column="6" Text="{Binding SizeText}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <!-- Where -->
+          <Grid ColumnDefinitions="140,*,Auto">
+            <TextBlock Text="Save to" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding OutputFolder}" />
+            <Button x:Name="BrowseButton" Grid.Column="2" Margin="8,0,0,0" Content="Browse…"
+                    Command="{Binding BrowseFolderCommand}" CommandParameter="{Binding #BrowseButton}" />
+          </Grid>
+          <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto">
+            <TextBlock Text="File name" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding FilenameTemplate}" FontFamily="Cascadia Mono,Consolas,monospace" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Classes="subtle" Margin="2,4,0,0" TextTrimming="CharacterEllipsis">
+              <Run Text="Preview: " /><Run Text="{Binding FilenamePreview}" />
+            </TextBlock>
+          </Grid>
+
+          <!-- Embeds -->
+          <Grid ColumnDefinitions="140,*">
+            <TextBlock Text="Embed" VerticalAlignment="Top" Margin="0,6,0,0" />
+            <StackPanel Grid.Column="1" Spacing="2">
+              <WrapPanel>
+                <CheckBox Content="Thumbnail" IsChecked="{Binding EmbedThumbnail}" Margin="0,0,16,0" />
+                <CheckBox Content="Metadata" IsChecked="{Binding EmbedMetadata}" Margin="0,0,16,0" />
+                <CheckBox Content="Chapters" IsChecked="{Binding EmbedChapters}" Margin="0,0,16,0" />
+                <CheckBox Content="Subtitles" IsChecked="{Binding EmbedSubtitles}" IsVisible="{Binding ShowSubtitleOption}" Margin="0,0,8,0" />
+                <TextBox Text="{Binding SubtitleLanguages}" Width="120" IsVisible="{Binding EmbedSubtitles}"
+                         ToolTip.Tip="Subtitle languages, e.g. en.*,de or all" />
+              </WrapPanel>
+              <TextBlock Classes="subtle" Text="{Binding SubtitlesAvailable}" IsVisible="{Binding IsSingle}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+
+          <!-- Playlist items -->
+          <StackPanel Spacing="8" IsVisible="{Binding IsPlaylist}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="h2" VerticalAlignment="Center">
+                <Run Text="Items" /><Run Text="  " /><Run Classes="subtle" Text="{Binding CheckedCount}" /><Run Classes="subtle" Text=" selected" />
+              </TextBlock>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                <Button Classes="icon" Content="All" Command="{Binding SelectAllCommand}" />
+                <Button Classes="icon" Content="None" Command="{Binding SelectNoneCommand}" />
+                <Button Classes="icon" Content="Invert" Command="{Binding InvertSelectionCommand}" />
+                <Button Classes="icon" Content="Tick highlighted (Space)" Command="{Binding ToggleHighlightedCommand}"
+                        CommandParameter="{Binding #EntryList.SelectedItems}"
+                        ToolTip.Tip="Highlight rows with Shift or Ctrl, then tick or untick them together" />
+              </StackPanel>
+            </Grid>
+            <Border Classes="panel" Height="300">
+              <ListBox x:Name="EntryList" ItemsSource="{Binding Entries}" SelectionMode="Multiple" Background="Transparent">
+                <ListBox.KeyBindings>
+                  <KeyBinding Gesture="Space" Command="{Binding ToggleHighlightedCommand}" CommandParameter="{Binding #EntryList.SelectedItems}" />
+                </ListBox.KeyBindings>
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem"><Setter Property="Padding" Value="8,4" /></Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PlaylistEntryViewModel">
+                    <Grid ColumnDefinitions="Auto,36,Auto,*">
+                      <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Center" MinWidth="0" />
+                      <TextBlock Grid.Column="1" Classes="subtle" Text="{Binding Index}" VerticalAlignment="Center" />
+                      <Border Grid.Column="2" Width="80" Height="45" CornerRadius="4" ClipToBounds="True" Background="{DynamicResource PanelBorder}">
+                        <Image svc:ImageLoader.Url="{Binding Thumbnail}" Stretch="UniformToFill" />
+                      </Border>
+                      <StackPanel Grid.Column="3" Margin="10,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Classes="subtle" Text="{Binding Details}" />
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Actions -->
+      <Border Grid.Row="2" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="0,1,0,0" Padding="18,12">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" VerticalAlignment="Center" TextWrapping="Wrap" />
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="Cancel" Command="{Binding CloseCommand}" />
+            <Button Classes="accent" Padding="20,6" Command="{Binding DownloadCommand}" IsDefault="True">
+              <Panel>
+                <TextBlock Text="Download" IsVisible="{Binding IsSingle}" />
+                <TextBlock IsVisible="{Binding IsPlaylist}">
+                  <Run Text="Download " /><Run Text="{Binding CheckedCount}" /><Run Text=" items" />
+                </TextBlock>
+              </Panel>
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+
+  <UserControl.Styles>
+    <Style Selector="RadioButton.seg">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="bd" Background="Transparent" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" Padding="14,5">
+            <ContentPresenter Content="{TemplateBinding Content}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="RadioButton.seg:checked /template/ Border#bd">
+      <Setter Property="Background" Value="{DynamicResource SystemAccentColor}" />
+    </Style>
+    <Style Selector="RadioButton.seg:checked">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+  </UserControl.Styles>
+</UserControl>

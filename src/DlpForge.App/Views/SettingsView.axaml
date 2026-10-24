@@ -1,0 +1,149 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DlpForge.App.ViewModels"
+             x:Class="DlpForge.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <ScrollViewer>
+    <StackPanel Spacing="14" Margin="0,0,8,16" MaxWidth="900" HorizontalAlignment="Left">
+
+      <!-- Downloads -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h2" Text="Downloads" />
+          <Grid ColumnDefinitions="190,*,Auto">
+            <TextBlock Text="Video folder" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding VideoFolder}" />
+            <Button Grid.Column="2" Margin="8,0,0,0" Content="Browse…" Command="{Binding BrowseFolderCommand}" CommandParameter="video" />
+          </Grid>
+          <Grid ColumnDefinitions="190,*,Auto">
+            <TextBlock Text="Audio folder" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding AudioFolder}" />
+            <Button Grid.Column="2" Margin="8,0,0,0" Content="Browse…" Command="{Binding BrowseFolderCommand}" CommandParameter="audio" />
+          </Grid>
+          <Grid ColumnDefinitions="190,*,Auto" RowDefinitions="Auto,Auto">
+            <TextBlock Text="File name template" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding FilenameTemplate}" FontFamily="Cascadia Mono,Consolas,monospace" />
+            <Button Grid.Column="2" Margin="8,0,0,0" Content="Reset" Command="{Binding ResetTemplateCommand}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Classes="subtle" Margin="2,4,0,0">
+              <Run Text="Preview: " /><Run Text="{Binding FilenamePreview}" />
+            </TextBlock>
+          </Grid>
+          <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto">
+            <TextBlock Text="Playlist file name template" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding PlaylistFilenameTemplate}" FontFamily="Cascadia Mono,Consolas,monospace" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Classes="subtle" Margin="2,4,0,0">
+              <Run Text="Preview: " /><Run Text="{Binding PlaylistFilenamePreview}" />
+            </TextBlock>
+          </Grid>
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Templates use yt-dlp's output template fields, such as %(title)s, %(id)s, %(uploader)s, %(upload_date)s and %(ext)s. A / makes a subfolder." />
+          <Grid ColumnDefinitions="190,Auto">
+            <TextBlock Text="Downloads at the same time" VerticalAlignment="Center" />
+            <NumericUpDown Grid.Column="1" Minimum="1" Maximum="10" Increment="1" FormatString="0" Width="130"
+                           Value="{Binding MaxConcurrent}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- Defaults for the download card -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h2" Text="Download card defaults" />
+          <Grid ColumnDefinitions="190,Auto,Auto,Auto">
+            <TextBlock Text="Type and quality" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" MinWidth="110" ItemsSource="{Binding TypeChoices}" SelectedItem="{Binding DefaultType}" />
+            <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="170" ItemsSource="{Binding QualityChoices}" SelectedItem="{Binding DefaultQuality}" />
+            <ComboBox Grid.Column="3" Margin="8,0,0,0" MinWidth="100" ItemsSource="{Binding VideoContainers}" SelectedItem="{Binding DefaultVideoContainer}" ToolTip.Tip="Video file type" />
+          </Grid>
+          <Grid ColumnDefinitions="190,Auto">
+            <TextBlock Text="Audio format" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" MinWidth="110" ItemsSource="{Binding AudioFormats}" SelectedItem="{Binding DefaultAudioFormat}" />
+          </Grid>
+          <Grid ColumnDefinitions="190,*">
+            <TextBlock Text="Embed by default" VerticalAlignment="Center" />
+            <WrapPanel Grid.Column="1">
+              <CheckBox Content="Thumbnail" IsChecked="{Binding EmbedThumbnail}" Margin="0,0,16,0" />
+              <CheckBox Content="Metadata" IsChecked="{Binding EmbedMetadata}" Margin="0,0,16,0" />
+              <CheckBox Content="Chapters" IsChecked="{Binding EmbedChapters}" Margin="0,0,16,0" />
+              <CheckBox Content="Subtitles" IsChecked="{Binding EmbedSubtitles}" Margin="0,0,8,0" />
+              <TextBox Text="{Binding SubtitleLanguages}" Width="120" ToolTip.Tip="Subtitle languages, e.g. en.*,de or all" />
+            </WrapPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- Appearance -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h2" Text="Appearance and notifications" />
+          <Grid ColumnDefinitions="190,Auto">
+            <TextBlock Text="Theme" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" MinWidth="200" ItemsSource="{Binding ThemeChoices}" SelectedItem="{Binding Theme}" />
+          </Grid>
+          <CheckBox Content="Show a Windows notification when a download finishes or fails" IsChecked="{Binding ShowNotifications}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Tools -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="h2" Text="Tools" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+              <Button Content="Check versions" Command="{Binding RefreshToolsCommand}" />
+              <Button Content="Open tools folder" Command="{Binding OpenToolsFolderCommand}" />
+            </StackPanel>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding Tools}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ToolViewModel">
+                <Grid ColumnDefinitions="120,*,Auto" Margin="0,4">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{Binding Version}" />
+                    <TextBlock Classes="subtle" Text="{Binding Purpose}" />
+                    <TextBlock Classes="subtle" Text="{Binding Path}" TextTrimming="PrefixCharacterEllipsis" />
+                    <ProgressBar Value="{Binding Progress}" Maximum="100" IsVisible="{Binding IsBusy}" MinHeight="4" Margin="0,4,0,0" />
+                  </StackPanel>
+                  <Button Grid.Column="2" VerticalAlignment="Center" Content="{Binding ActionLabel}"
+                          Command="{Binding InstallCommand}" IsEnabled="{Binding !IsBusy}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Separator />
+          <TextBlock Classes="h2" Text="yt-dlp updates" FontSize="13" />
+          <Grid ColumnDefinitions="190,Auto,Auto">
+            <TextBlock Text="Release channel" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" MinWidth="130" ItemsSource="{Binding Channels}" SelectedItem="{Binding YtDlpChannel}" />
+            <Button Grid.Column="2" Margin="8,0,0,0" Content="Update yt-dlp now" Command="{Binding UpdateYtDlpCommand}" IsEnabled="{Binding !IsUpdatingYtDlp}" />
+          </Grid>
+          <Grid ColumnDefinitions="190,Auto,Auto">
+            <TextBlock Text="Roll back to version" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Width="200" Text="{Binding RollbackTag}" PlaceholderText="e.g. 2025.10.22" />
+            <Button Grid.Column="2" Margin="8,0,0,0" Content="Switch" Command="{Binding RollbackCommand}" IsEnabled="{Binding !IsUpdatingYtDlp}" />
+          </Grid>
+          <TextBox Text="{Binding ToolLog}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="70" MaxHeight="200"
+                   FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12"
+                   IsVisible="{Binding ToolLog, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Data -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h2" Text="Data" />
+          <TextBlock Classes="subtle" Text="{Binding DataFolder}" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Open data folder" Command="{Binding OpenDataFolderCommand}" />
+            <Button Content="Open logs folder" Command="{Binding OpenLogsFolderCommand}" />
+          </StackPanel>
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Portable mode: put an empty file named portable.txt next to DlpForge.exe and it keeps settings, history and tools in a data folder beside the exe." />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

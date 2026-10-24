@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DlpForge</title>
+  <meta name="description" content="DlpForge is a free Windows desktop app that puts a friendly interface on top of yt-dlp.">
+  <link rel="icon" href="favicon.ico">
+  <style>
+    :root {
+      --bg: #fbf8f6;
+      --surface: #ffffff;
+      --text: #1d1a18;
+      --muted: #5f5853;
+      --border: #e9e2dc;
+      --accent: #e8572c;
+      --accent-2: #f07a2e;
+      --code-bg: #f3eeea;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #161312;
+        --surface: #1f1b19;
+        --text: #f2ece8;
+        --muted: #b0a7a1;
+        --border: #342d29;
+        --accent: #ff7a4d;
+        --accent-2: #ff9a52;
+        --code-bg: #2a2421;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+    header.hero { padding: 72px 0 56px; text-align: center; }
+    header.hero img { width: 96px; height: 96px; }
+    h1 { font-size: 2.6rem; margin: 16px 0 8px; letter-spacing: -0.02em; }
+    .tagline { font-size: 1.2rem; color: var(--muted); max-width: 620px; margin: 0 auto 28px; }
+    .buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; padding: 10px 20px; border-radius: 8px;
+      font-weight: 600; text-decoration: none; border: 1px solid var(--border);
+      color: var(--text); background: var(--surface);
+    }
+    .btn.primary {
+      background: linear-gradient(135deg, var(--accent-2), var(--accent));
+      color: #fff; border-color: transparent;
+    }
+    .badge { display: inline-block; margin-top: 18px; font-size: 0.85rem; color: var(--muted); }
+    section { padding: 40px 0; border-top: 1px solid var(--border); }
+    h2 { font-size: 1.5rem; margin: 0 0 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 1.05rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    pre {
+      background: var(--code-bg); border-radius: 8px; padding: 14px 16px;
+      overflow-x: auto; font-size: 0.9rem;
+    }
+    code { font-family: "Cascadia Code", Consolas, monospace; }
+    ul.plain { padding-left: 20px; color: var(--muted); }
+    footer { padding: 32px 0 48px; color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <img src="icon.png" alt="DlpForge icon">
+      <h1>DlpForge</h1>
+      <p class="tagline">A free Windows app that puts a friendly interface on top of
+        <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a>. Paste a link, pick video or audio and a quality, and download.</p>
+      <div class="buttons">
+        <a class="btn primary" href="https://github.com/ShehanWeerarathna/DlpForge">View on GitHub</a>
+        <a class="btn" href="https://github.com/ShehanWeerarathna/DlpForge/releases">Releases</a>
+      </div>
+      <div class="badge">Version 0.1 &middot; Windows 10 / 11 &middot; GPL-3.0</div>
+    </header>
+
+    <section>
+      <h2>Features</h2>
+      <div class="grid">
+        <div class="card"><h3>Paste or drop links</h3><p>Always-visible link bar. Drop links, <code>.url</code> shortcuts or <code>.txt</code> lists onto the window.</p></div>
+        <div class="card"><h3>Pick the format</h3><p>Video or audio, quality presets from 2160p to 360p, container or audio format, or an exact-format table.</p></div>
+        <div class="card"><h3>Playlists</h3><p>Every item listed with checkboxes, select all, none or invert, and Shift/Ctrl multi-select.</p></div>
+        <div class="card"><h3>Download queue</h3><p>1 to 10 parallel downloads with live progress, speed and ETA. Pause, resume, cancel, retry. Survives restarts.</p></div>
+        <div class="card"><h3>Folders and templates</h3><p>A folder per download type and file name templates with a live preview.</p></div>
+        <div class="card"><h3>Embed extras</h3><p>Thumbnail, metadata, chapters and subtitles embedded in the file.</p></div>
+        <div class="card"><h3>History and logs</h3><p>Searchable, sortable history with thumbnails, and a log viewer for every download.</p></div>
+        <div class="card"><h3>Tools managed for you</h3><p>Installs and updates yt-dlp, FFmpeg and Deno, switches yt-dlp channels and rolls back versions.</p></div>
+        <div class="card"><h3>Fits Windows</h3><p>Toast notifications, taskbar progress, light and dark themes, and a portable mode.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Build from source</h2>
+      <p>Requires Windows 10 or 11 (x64) and the <a href="https://dotnet.microsoft.com/download">.NET 10 SDK</a>.</p>
+<pre><code>git clone https://github.com/ShehanWeerarathna/DlpForge.git
+cd DlpForge
+dotnet run --project src/DlpForge.App</code></pre>
+      <p>On first start, open <strong>Settings &gt; Tools</strong> to download yt-dlp, FFmpeg and Deno.
+        DlpForge also uses copies already on your <code>PATH</code>.</p>
+    </section>
+
+    <section>
+      <h2>Coming next</h2>
+      <ul class="plain">
+        <li>In-app search and a quick download mode</li>
+        <li>Browser cookies, scheduling and a tray mode</li>
+        <li>Cut by timestamps or chapters, SponsorBlock, split by chapters</li>
+        <li>Custom commands and a terminal pane</li>
+      </ul>
+      <p>See the full <a href="https://github.com/ShehanWeerarathna/DlpForge/blob/main/docs/FEATURES.md">feature list</a>.</p>
+    </section>
+
+    <footer>
+      DlpForge is licensed under <a href="https://github.com/ShehanWeerarathna/DlpForge/blob/main/LICENSE">GPL-3.0</a>.
+      Its feature set is inspired by <a href="https://github.com/deniscerri/ytdlnis">YTDLnis</a>. Not affiliated with the yt-dlp project.
+    </footer>
+  </div>
+</body>
+</html>

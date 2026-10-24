@@ -1,0 +1,114 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DlpForge.App.ViewModels"
+        xmlns:v="using:DlpForge.App.Views"
+        x:Class="DlpForge.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="DlpForge"
+        Icon="/Assets/dlpforge.ico"
+        Width="1180" Height="760" MinWidth="820" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource AppBackground}"
+        DragDrop.AllowDrop="True">
+
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Ctrl+D1" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Section.Downloads}" />
+    <KeyBinding Gesture="Ctrl+D2" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Section.History}" />
+    <KeyBinding Gesture="Ctrl+D3" Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Section.Settings}" />
+  </Window.KeyBindings>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="200,*">
+
+    <!-- Brand -->
+    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="10" Margin="18,14,0,14" VerticalAlignment="Center">
+      <Image Source="/Assets/dlpforge.png" Width="28" Height="28" />
+      <TextBlock Text="DlpForge" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <!-- Link bar: always visible -->
+    <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" Margin="0,12,16,12">
+      <TextBox x:Name="UrlBox" Grid.Column="0"
+               Text="{Binding UrlInput}"
+               PlaceholderText="Paste a link (Ctrl+L), drop one on the window, or search with ytsearch10:your words"
+               VerticalContentAlignment="Center" Height="38">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding InspectCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+      <Button Grid.Column="1" Margin="8,0,0,0" Height="38" Classes="accent" Padding="18,0" VerticalContentAlignment="Center"
+              Content="Download" Command="{Binding InspectCommand}"
+              IsVisible="{Binding !IsInspecting}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="8,0,0,0" IsVisible="{Binding IsInspecting}">
+        <ProgressBar IsIndeterminate="True" Width="90" VerticalAlignment="Center" />
+        <Button Content="Stop" Height="38" Command="{Binding CancelInspectCommand}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Banners -->
+    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,16,8" Spacing="6">
+      <Border Classes="panel" Padding="12,8" IsVisible="{Binding ToolsMissing}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                     Text="yt-dlp isn't installed yet. DlpForge can download yt-dlp, FFmpeg and Deno into its own tools folder." />
+          <Button Grid.Column="1" Classes="accent" Margin="12,0,0,0" Content="Install tools" Command="{Binding InstallToolsCommand}" />
+        </Grid>
+      </Border>
+      <Border Classes="panel" Padding="12,8" IsVisible="{Binding InspectError, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <Grid ColumnDefinitions="*,Auto">
+          <SelectableTextBlock Text="{Binding InspectError}" Foreground="{DynamicResource ErrorText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Classes="icon" Margin="12,0,0,0" Content="Dismiss" Command="{Binding DismissErrorCommand}" />
+        </Grid>
+      </Border>
+    </StackPanel>
+
+    <!-- Navigation -->
+    <StackPanel Grid.Row="1" Grid.RowSpan="2" Grid.Column="0" Margin="10,0,10,10" Spacing="4">
+      <ToggleButton Classes="nav" IsChecked="{Binding IsDownloadsSection, Mode=OneWay}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Section.Downloads}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,9" ToolTip.Tip="Ctrl+1">
+        <TextBlock Text="⬇  Downloads" />
+      </ToggleButton>
+      <ToggleButton Classes="nav" IsChecked="{Binding IsHistorySection, Mode=OneWay}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Section.History}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,9" ToolTip.Tip="Ctrl+2">
+        <TextBlock Text="🕘  History" />
+      </ToggleButton>
+      <ToggleButton Classes="nav" IsChecked="{Binding IsSettingsSection, Mode=OneWay}"
+                    Command="{Binding NavigateCommand}" CommandParameter="{x:Static vm:Section.Settings}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="12,9" ToolTip.Tip="Ctrl+3">
+        <TextBlock Text="⚙  Settings" />
+      </ToggleButton>
+    </StackPanel>
+
+    <!-- Content -->
+    <Panel Grid.Row="2" Grid.Column="1" Margin="0,0,16,0">
+      <v:DownloadsView DataContext="{Binding Downloads}" IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsDownloadsSection}" />
+      <v:HistoryView x:Name="HistoryPage" DataContext="{Binding History}" IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsHistorySection}" />
+      <v:SettingsView DataContext="{Binding Settings}" IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).IsSettingsSection}" />
+    </Panel>
+
+    <!-- Status bar -->
+    <Grid Grid.Row="3" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" Margin="18,6,16,8">
+      <TextBlock Classes="subtle" Text="{Binding StatusText}" />
+      <TextBlock Grid.Column="1" Classes="subtle" Text="Drop links or .txt files anywhere · Ctrl+V pastes and opens a link" />
+    </Grid>
+
+    <!-- Download card overlay -->
+    <Panel Grid.RowSpan="4" Grid.ColumnSpan="2" IsVisible="{Binding IsCardOpen}">
+      <Border Background="{DynamicResource Backdrop}" PointerPressed="OnBackdropPressed" />
+      <v:DownloadCardView DataContext="{Binding Card}" MaxWidth="980" Margin="40,30" />
+    </Panel>
+  </Grid>
+
+  <Window.Styles>
+    <Style Selector="ToggleButton.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="ToggleButton.nav:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource NavSelected}" />
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
+    </Style>
+  </Window.Styles>
+</Window>

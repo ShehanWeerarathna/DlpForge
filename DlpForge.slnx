@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DlpForge.App/DlpForge.App.csproj" />
+    <Project Path="src/DlpForge.Core/DlpForge.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DlpForge.Core.Tests/DlpForge.Core.Tests.csproj" />
+  </Folder>
+</Solution>

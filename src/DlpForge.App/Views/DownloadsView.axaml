@@ -1,0 +1,128 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DlpForge.App.ViewModels"
+             xmlns:q="using:DlpForge.Core.Queue"
+             xmlns:svc="using:DlpForge.App.Services"
+             x:Class="DlpForge.App.Views.DownloadsView"
+             x:DataType="vm:DownloadsViewModel">
+
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Delete" Command="{Binding RemoveCommand}" CommandParameter="{Binding Selected}" />
+  </UserControl.KeyBindings>
+
+  <Grid RowDefinitions="Auto,*">
+    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <RadioButton Classes="tab" GroupName="qf" Content="{Binding AllLabel}" IsChecked="True"
+                     Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.All}" />
+        <RadioButton Classes="tab" GroupName="qf" Content="{Binding ActiveLabel}"
+                     Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Active}" />
+        <RadioButton Classes="tab" GroupName="qf" Content="{Binding QueuedLabel}"
+                     Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Queued}" />
+        <RadioButton Classes="tab" GroupName="qf" Content="{Binding CompletedLabel}"
+                     Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Completed}" />
+        <RadioButton Classes="tab" GroupName="qf" Content="{Binding FailedLabel}"
+                     Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Failed}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+        <Button Content="Pause all" Command="{Binding PauseAllCommand}" />
+        <Button Content="Resume all" Command="{Binding ResumeAllCommand}" />
+        <Button Content="Clear finished" Command="{Binding ClearFinishedCommand}" ToolTip.Tip="Removes finished items from this list. They stay in History." />
+      </StackPanel>
+    </Grid>
+
+    <TextBlock Grid.Row="1" IsVisible="{Binding IsEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center"
+               TextAlignment="Center" Classes="subtle" FontSize="14"
+               Text="Nothing here yet.&#10;Paste a link above, or drop links and .txt files onto the window." />
+
+    <ListBox Grid.Row="1" ItemsSource="{Binding Visible}" SelectedItem="{Binding Selected}"
+             Background="Transparent" IsVisible="{Binding !IsEmpty}">
+      <ListBox.ContextMenu>
+        <ContextMenu>
+          <MenuItem Header="Open file" Command="{Binding OpenFileCommand}" CommandParameter="{Binding Selected}" IsEnabled="{Binding Selected.HasFile, FallbackValue=False}" />
+          <MenuItem Header="Show in folder" Command="{Binding ShowInFolderCommand}" CommandParameter="{Binding Selected}" />
+          <Separator />
+          <MenuItem Header="Pause" Command="{Binding PauseCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanPause, FallbackValue=False}" />
+          <MenuItem Header="Resume" Command="{Binding ResumeCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanResume, FallbackValue=False}" />
+          <MenuItem Header="Cancel" Command="{Binding CancelCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanCancel, FallbackValue=False}" />
+          <MenuItem Header="Download again" Command="{Binding RetryCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanRetry, FallbackValue=False}" />
+          <Separator />
+          <MenuItem Header="View log" Command="{Binding ViewLogCommand}" CommandParameter="{Binding Selected}" />
+          <MenuItem Header="Open link in browser" Command="{Binding OpenLinkCommand}" CommandParameter="{Binding Selected}" />
+          <MenuItem Header="Remove" InputGesture="Delete" Command="{Binding RemoveCommand}" CommandParameter="{Binding Selected}" />
+        </ContextMenu>
+      </ListBox.ContextMenu>
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem">
+          <Setter Property="Padding" Value="0" />
+          <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+      </ListBox.Styles>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="q:DownloadItem">
+          <Border Classes="panel" Padding="10">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Border Width="128" Height="72" CornerRadius="6" ClipToBounds="True" Background="{DynamicResource PanelBorder}">
+                <Image svc:ImageLoader.Url="{Binding Thumbnail}" Stretch="UniformToFill" />
+              </Border>
+
+              <StackPanel Grid.Column="1" Margin="12,0" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="subtle" Text="{Binding StatusText}" FontWeight="SemiBold" />
+                  <TextBlock Classes="subtle" Text="{Binding TypeText}" />
+                  <TextBlock Classes="subtle" Text="{Binding StageText}" IsVisible="{Binding IsActive}" />
+                  <TextBlock Classes="subtle" Text="{Binding SizeText}" />
+                  <TextBlock Classes="subtle" Text="{Binding SpeedText}" />
+                  <TextBlock Classes="subtle" Text="{Binding EtaText}" />
+                </StackPanel>
+                <ProgressBar Value="{Binding Percent}" IsIndeterminate="{Binding IsIndeterminate}" Maximum="100" MinHeight="4"
+                             IsVisible="{Binding !IsFailed}" />
+                <SelectableTextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" FontSize="12"
+                                     TextWrapping="Wrap" MaxLines="3"
+                                     IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <Button Classes="icon" Content="Open" IsVisible="{Binding HasFile}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).OpenFileCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Folder" IsVisible="{Binding HasFile}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).ShowInFolderCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Pause" IsVisible="{Binding CanPause}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).PauseCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Resume" IsVisible="{Binding CanResume}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).ResumeCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Retry" IsVisible="{Binding IsFailed}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).RetryCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Cancel" IsVisible="{Binding CanCancel}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).CancelCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Log"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).ViewLogCommand}" CommandParameter="{Binding}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+
+  <UserControl.Styles>
+    <Style Selector="RadioButton.tab">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border x:Name="bd" Background="Transparent" CornerRadius="14" Padding="12,5">
+            <ContentPresenter Content="{TemplateBinding Content}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="RadioButton.tab:checked /template/ Border#bd">
+      <Setter Property="Background" Value="{DynamicResource NavSelected}" />
+    </Style>
+    <Style Selector="RadioButton.tab:pointerover /template/ Border#bd">
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+  </UserControl.Styles>
+</UserControl>

@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DlpForge.App.ViewModels"
+             xmlns:q="using:DlpForge.Core.Queue"
+             xmlns:svc="using:DlpForge.App.Services"
+             x:Class="DlpForge.App.Views.HistoryView"
+             x:DataType="vm:HistoryViewModel">
+
+  <UserControl.KeyBindings>
+    <KeyBinding Gesture="Delete" Command="{Binding RemoveFromHistoryCommand}" CommandParameter="{Binding Selected}" />
+    <KeyBinding Gesture="Enter" Command="{Binding OpenFileCommand}" CommandParameter="{Binding Selected}" />
+  </UserControl.KeyBindings>
+
+  <Grid RowDefinitions="Auto,*">
+    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,10">
+      <TextBox x:Name="SearchBox" Text="{Binding Search}" PlaceholderText="Search titles, channels and links (Ctrl+F)" />
+      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150" ItemsSource="{Binding SortChoices}" SelectedItem="{Binding Sort}" />
+      <TextBlock Grid.Column="2" Margin="12,0,0,0" Classes="subtle" VerticalAlignment="Center" Text="{Binding Summary}" />
+    </Grid>
+
+    <TextBlock Grid.Row="1" IsVisible="{Binding IsEmpty}" HorizontalAlignment="Center" VerticalAlignment="Center"
+               Classes="subtle" FontSize="14" Text="Finished downloads appear here." />
+
+    <ListBox Grid.Row="1" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" Background="Transparent"
+             IsVisible="{Binding !IsEmpty}" DoubleTapped="OnDoubleTapped">
+      <ListBox.ContextMenu>
+        <ContextMenu>
+          <MenuItem Header="Open file" InputGesture="Enter" Command="{Binding OpenFileCommand}" CommandParameter="{Binding Selected}" />
+          <MenuItem Header="Show in folder" Command="{Binding ShowInFolderCommand}" CommandParameter="{Binding Selected}" />
+          <Separator />
+          <MenuItem Header="Download again" Command="{Binding DownloadAgainCommand}" CommandParameter="{Binding Selected}" />
+          <MenuItem Header="Download with other settings…" Command="{Binding DownloadWithOtherSettingsCommand}" CommandParameter="{Binding Selected}" />
+          <Separator />
+          <MenuItem Header="View log" Command="{Binding ViewLogCommand}" CommandParameter="{Binding Selected}" />
+          <MenuItem Header="Open link in browser" Command="{Binding OpenLinkCommand}" CommandParameter="{Binding Selected}" />
+          <MenuItem Header="Remove from history" InputGesture="Delete" Command="{Binding RemoveFromHistoryCommand}" CommandParameter="{Binding Selected}" />
+        </ContextMenu>
+      </ListBox.ContextMenu>
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem">
+          <Setter Property="Padding" Value="6" />
+        </Style>
+      </ListBox.Styles>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="q:DownloadItem">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <Border Width="96" Height="54" CornerRadius="5" ClipToBounds="True" Background="{DynamicResource PanelBorder}">
+              <Image svc:ImageLoader.Url="{Binding Thumbnail}" Stretch="UniformToFill" />
+            </Border>
+            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Spacing="3">
+              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Classes="subtle" Text="{Binding Uploader}" />
+                <TextBlock Classes="subtle" Text="{Binding TypeText}" />
+                <TextBlock Classes="subtle" Text="{Binding DurationText}" />
+                <TextBlock Classes="subtle" Text="{Binding SizeText}" />
+              </StackPanel>
+              <TextBlock Classes="subtle" Text="{Binding FilePath}" TextTrimming="PrefixCharacterEllipsis" />
+            </StackPanel>
+            <TextBlock Grid.Column="2" Classes="subtle" VerticalAlignment="Center" Margin="0,0,12,0"
+                       Text="{Binding CompletedAt, StringFormat='{}{0:d MMM yyyy, HH:mm}'}" />
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+              <Button Classes="icon" Content="Open" Command="{Binding $parent[UserControl].((vm:HistoryViewModel)DataContext).OpenFileCommand}" CommandParameter="{Binding}" />
+              <Button Classes="icon" Content="Folder" Command="{Binding $parent[UserControl].((vm:HistoryViewModel)DataContext).ShowInFolderCommand}" CommandParameter="{Binding}" />
+            </StackPanel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </Grid>
+</UserControl>

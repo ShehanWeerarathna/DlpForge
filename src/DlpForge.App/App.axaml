@@ -1,0 +1,64 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DlpForge.App.App"
+             Name="DlpForge"
+             RequestedThemeVariant="Default">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="AppBackground" Color="#F5F5F7" />
+          <SolidColorBrush x:Key="PanelBackground" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="PanelBorder" Color="#E2E2E6" />
+          <SolidColorBrush x:Key="SubtleText" Color="#6B6B76" />
+          <SolidColorBrush x:Key="NavSelected" Color="#FFE9DF" />
+          <SolidColorBrush x:Key="ErrorText" Color="#C42B1C" />
+          <SolidColorBrush x:Key="SuccessText" Color="#0F7B0F" />
+          <SolidColorBrush x:Key="Backdrop" Color="#66000000" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="AppBackground" Color="#1C1C20" />
+          <SolidColorBrush x:Key="PanelBackground" Color="#26262B" />
+          <SolidColorBrush x:Key="PanelBorder" Color="#35353C" />
+          <SolidColorBrush x:Key="SubtleText" Color="#A0A0AB" />
+          <SolidColorBrush x:Key="NavSelected" Color="#3A2A24" />
+          <SolidColorBrush x:Key="ErrorText" Color="#FF8A80" />
+          <SolidColorBrush x:Key="SuccessText" Color="#6CCB5F" />
+          <SolidColorBrush x:Key="Backdrop" Color="#99000000" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+      <Color x:Key="SystemAccentColor">#E8552F</Color>
+      <Color x:Key="SystemAccentColorDark1">#D04A27</Color>
+      <Color x:Key="SystemAccentColorDark2">#B83F20</Color>
+      <Color x:Key="SystemAccentColorLight1">#EE6F4B</Color>
+      <Color x:Key="SystemAccentColorLight2">#F28A6A</Color>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="TextBlock.subtle">
+      <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PanelBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button.icon">
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+  </Application.Styles>
+</Application>
