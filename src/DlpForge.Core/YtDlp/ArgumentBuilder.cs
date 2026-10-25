@@ -30,6 +30,19 @@ public static partial class ArgumentBuilder
         return args;
     }
 
+    /// <summary>
+    /// Opens the Watch Later list, which needs a signed-in YouTube account. "--playlist-items 0" fetches only
+    /// the list itself, not its videos. Warnings stay on: yt-dlp reports rejected cookies as a warning.
+    /// </summary>
+    public static List<string> ForSignInTest(CommonOptions common)
+    {
+        List<string> args = ["-J", "--flat-playlist", "--playlist-items", "0", "--color", "never", .. Utf8Output];
+        AddCommon(args, common);
+        args.Add("--");
+        args.Add(CookieFileCheck.SignInTestUrl);
+        return args;
+    }
+
     public static List<string> ForDownload(string url, DownloadOptions o, CommonOptions common)
     {
         List<string> args =

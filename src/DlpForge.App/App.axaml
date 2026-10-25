@@ -15,6 +15,7 @@
           <SolidColorBrush x:Key="NavSelected" Color="#FFE9DF" />
           <SolidColorBrush x:Key="ErrorText" Color="#C42B1C" />
           <SolidColorBrush x:Key="SuccessText" Color="#0F7B0F" />
+          <SolidColorBrush x:Key="WarningText" Color="#9D5D00" />
           <SolidColorBrush x:Key="Backdrop" Color="#66000000" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
@@ -25,6 +26,7 @@
           <SolidColorBrush x:Key="NavSelected" Color="#3A2A24" />
           <SolidColorBrush x:Key="ErrorText" Color="#FF8A80" />
           <SolidColorBrush x:Key="SuccessText" Color="#6CCB5F" />
+          <SolidColorBrush x:Key="WarningText" Color="#FCE100" />
           <SolidColorBrush x:Key="Backdrop" Color="#99000000" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>

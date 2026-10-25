@@ -37,6 +37,7 @@ normal console text.
 | | `--trim-filenames N` | N is worked out from the download folder so the full path stays under the Windows 260-character limit. |
 | | `--download-sections "*start-end"`, `--split-chapters`, `--sponsorblock-mark/remove`, `--parse-metadata` | Cut parts, chapter files, SponsorBlock and edited title/artist. Edited text is escaped so yt-dlp reads it literally. |
 | Terminal | the user's arguments | The Terminal page. DlpForge's tool and cookie options go first so typed ones win. No shell is involved. |
+| Sign-in test | `-J --flat-playlist --playlist-items 0 --cookies <copy> -- https://www.youtube.com/playlist?list=WL` | Settings > Cookies > Verify. Watch Later needs an account, and yt-dlp warns "cookies are no longer valid" when YouTube rejects them. It runs on a temporary copy because yt-dlp saves the cookies back into the file and drops rejected sign-in cookies. Before this, `CookieFileCheck` reads the file with yt-dlp's own rules, offline. |
 | Version | `--version` | Settings > Tools. |
 | Update | `--update-to stable / nightly / master / channel@tag` | Updating, switching channel and rolling back. |
 

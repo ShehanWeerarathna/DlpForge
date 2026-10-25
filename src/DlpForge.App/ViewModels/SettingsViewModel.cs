@@ -74,7 +74,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty] private bool _quickDownload;
     [ObservableProperty] private decimal _searchResultCount;
-    [ObservableProperty][NotifyPropertyChangedFor(nameof(IsCookieBrowser), nameof(IsCookieFile))] private Choice<CookieMode> _selectedCookieMode;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(IsCookieBrowser), nameof(IsCookieFile), nameof(ShowCookieCheck))] private Choice<CookieMode> _selectedCookieMode;
     [ObservableProperty] private string _cookieBrowser;
     [ObservableProperty] private string _cookieProfile;
     [ObservableProperty] private string _cookieFile;
@@ -82,6 +82,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _closeToTray;
     public bool IsCookieBrowser => SelectedCookieMode.Value == CookieMode.Browser;
     public bool IsCookieFile => SelectedCookieMode.Value == CookieMode.File;
+    /// <summary>What the last Verify of the cookies.txt file found.</summary>
+    public ObservableCollection<CheckNoteViewModel> CookieNotes { get; } = [];
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(ShowCookieCheck))] private string _cookieCheckStatus = "";
+    public bool ShowCookieCheck => IsCookieFile && (CookieNotes.Count > 0 || CookieCheckStatus.Length > 0);
+    private CancellationTokenSource? _cookieCheck;
     public ObservableCollection<SponsorBlockCategoryViewModel> SponsorBlockCategories { get; } = [];
     public ObservableCollection<CommandTemplateViewModel> CommandTemplates { get; } = [];
 
@@ -126,6 +131,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _sponsorBlockByDefault = S.SponsorBlockByDefault;
         _closeToTray = S.CloseToTray;
         _services.Client.Cookies = S.Cookies;
+        CookieNotes.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowCookieCheck));
 
         foreach (var c in SponsorBlock.Categories)
         {
@@ -173,6 +179,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         Save(change);
         _services.Client.Cookies = S.Cookies;
+        // A result for another file or mode would mislead.
+        _cookieCheck?.Cancel();
+        CookieNotes.Clear();
     }
 
     private void SaveSponsorBlock()
@@ -186,6 +195,55 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private async Task BrowseCookieFile()
     {
         if (await Dialogs.OpenFileAsync("Choose a cookies.txt file", Dialogs.CookieFiles) is { } path) CookieFile = path;
+    }
+
+    /// <summary>
+    /// Checks the cookies.txt file the way yt-dlp reads it, then, if it has YouTube sign-in cookies,
+    /// asks YouTube whether they still sign you in. The file itself is never changed.
+    /// </summary>
+    [RelayCommand]
+    private async Task VerifyCookieFile()
+    {
+        _cookieCheck?.Cancel();
+        var cts = _cookieCheck = new CancellationTokenSource();
+        var path = CookieFile.Trim();
+        CookieNotes.Clear();
+        CookieCheckStatus = "Reading the file…";
+        try
+        {
+            var report = await Task.Run(() => CookieFileCheck.CheckFile(path, DateTimeOffset.Now));
+            if (cts.IsCancellationRequested) return;
+            foreach (var note in report.Notes) CookieNotes.Add(new CheckNoteViewModel(note));
+            if (!report.HasYouTubeSignIn) return;
+
+            if (_services.Client.Tools.YtDlp is null)
+            {
+                CookieNotes.Add(new CheckNoteViewModel(new CheckNote(NoteLevel.Info,
+                    "Install yt-dlp in Settings > Tools to also check the sign-in with YouTube.")));
+                return;
+            }
+            CookieCheckStatus = "Asking YouTube whether these cookies sign you in…";
+            var signIn = await Task.Run(() => _services.Client.TestYouTubeSignInAsync(path, cts.Token));
+            if (!cts.IsCancellationRequested) CookieNotes.Add(new CheckNoteViewModel(signIn));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or YtDlpException
+                                       or System.ComponentModel.Win32Exception)
+        {
+            if (!cts.IsCancellationRequested)
+                CookieNotes.Add(new CheckNoteViewModel(new CheckNote(NoteLevel.Error, "The check failed: " + ex.Message)));
+        }
+        finally
+        {
+            if (_cookieCheck == cts)
+            {
+                _cookieCheck = null;
+                CookieCheckStatus = "";
+            }
+            cts.Dispose();
+        }
     }
 
     // ---- Command templates ----
@@ -406,6 +464,22 @@ public sealed partial class SponsorBlockCategoryViewModel : ViewModelBase
     }
 
     partial void OnActionChanged(Choice<SponsorBlockAction> value) => _changed();
+}
+
+/// <summary>One line of a cookie check result: a coloured mark and the text.</summary>
+public sealed class CheckNoteViewModel(CheckNote note)
+{
+    public string Text => note.Text;
+    public string Mark => note.Level switch
+    {
+        NoteLevel.Ok => "✓",
+        NoteLevel.Warning => "!",
+        NoteLevel.Error => "✕",
+        _ => "•",
+    };
+    public bool IsOk => note.Level == NoteLevel.Ok;
+    public bool IsWarning => note.Level == NoteLevel.Warning;
+    public bool IsError => note.Level == NoteLevel.Error;
 }
 
 /// <summary>One editable command template row in Settings.</summary>

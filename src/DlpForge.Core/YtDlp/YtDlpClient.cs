@@ -88,6 +88,31 @@ public sealed class YtDlpClient(ToolLocator tools)
         return new DownloadResult(code, finalPath, code == 0 ? null : ErrorHints.Explain(lastError ?? $"yt-dlp exited with code {code}."));
     }
 
+    /// <summary>
+    /// Asks YouTube whether a cookies.txt file signs you in. yt-dlp saves the cookies back into the file it is
+    /// given, and drops the sign-in cookies when YouTube rejects them, so this runs on a temporary copy and
+    /// the user's file is never changed.
+    /// </summary>
+    public async Task<CheckNote> TestYouTubeSignInAsync(string cookieFile, CancellationToken ct = default)
+    {
+        var exe = Exe;
+        var copy = Path.Combine(Path.GetTempPath(), $"dlpforge-cookies-{Guid.NewGuid():N}.txt");
+        File.Copy(cookieFile, copy);
+        try
+        {
+            var stderr = new List<string>();
+            var common = CommonOptions with { Cookies = new CookieOptions { Mode = CookieMode.File, FilePath = copy } };
+            int code = await ProcessRunner.RunAsync(exe, ArgumentBuilder.ForSignInTest(common), _ => { }, stderr.Add, ct)
+                .ConfigureAwait(false);
+            return CookieFileCheck.InterpretSignInTest(code, stderr);
+        }
+        finally
+        {
+            try { File.Delete(copy); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    }
+
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)
     {
         if (tools.YtDlp is null) return null;

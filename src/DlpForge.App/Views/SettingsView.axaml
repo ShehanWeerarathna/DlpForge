@@ -4,6 +4,22 @@
              x:Class="DlpForge.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
 
+  <UserControl.Styles>
+    <Style Selector="TextBlock.mark">
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource SubtleText}" />
+    </Style>
+    <Style Selector="TextBlock.mark.ok">
+      <Setter Property="Foreground" Value="{DynamicResource SuccessText}" />
+    </Style>
+    <Style Selector="TextBlock.mark.warning">
+      <Setter Property="Foreground" Value="{DynamicResource WarningText}" />
+    </Style>
+    <Style Selector="TextBlock.mark.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorText}" />
+    </Style>
+  </UserControl.Styles>
+
   <ScrollViewer>
     <StackPanel Spacing="14" Margin="0,0,8,16" MaxWidth="900" HorizontalAlignment="Left">
 
@@ -115,11 +131,33 @@
           </Grid>
           <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding IsCookieBrowser}"
                      Text="Firefox works best. Chrome, Edge and other Chromium browsers lock and encrypt their cookies on Windows; close the browser first, and if it still fails, export a cookies.txt file instead." />
-          <Grid ColumnDefinitions="190,*,Auto" IsVisible="{Binding IsCookieFile}">
+          <Grid ColumnDefinitions="190,*,Auto,Auto" IsVisible="{Binding IsCookieFile}">
             <TextBlock Text="cookies.txt file" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding CookieFile}" PlaceholderText="Netscape-format cookies file" />
+            <TextBox x:Name="CookieFileBox" Grid.Column="1" Text="{Binding CookieFile}" PlaceholderText="Netscape-format cookies file" />
             <Button Grid.Column="2" Margin="8,0,0,0" Content="Browse…" Command="{Binding BrowseCookieFileCommand}" />
+            <Button x:Name="VerifyCookiesButton" Grid.Column="3" Margin="6,0,0,0" Content="Verify" Command="{Binding VerifyCookieFileCommand}"
+                    ToolTip.Tip="Check that yt-dlp can read the file and, for YouTube cookies, that YouTube still accepts them. The file is not changed." />
           </Grid>
+          <StackPanel Margin="190,0,0,0" Spacing="3" IsVisible="{Binding ShowCookieCheck}">
+            <StackPanel Orientation="Horizontal" Spacing="8"
+                        IsVisible="{Binding CookieCheckStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+              <ProgressBar IsIndeterminate="True" Width="80" MinWidth="0" VerticalAlignment="Center" />
+              <TextBlock Classes="subtle" Text="{Binding CookieCheckStatus}" VerticalAlignment="Center" />
+            </StackPanel>
+            <ItemsControl x:Name="CookieCheckNotes" ItemsSource="{Binding CookieNotes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CheckNoteViewModel">
+                  <Grid ColumnDefinitions="18,*" Margin="0,1">
+                    <TextBlock Classes="mark" Classes.ok="{Binding IsOk}" Classes.warning="{Binding IsWarning}" Classes.error="{Binding IsError}"
+                               Text="{Binding Mark}" />
+                    <SelectableTextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+          <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding IsCookieFile}"
+                     Text="Export cookies with a browser extension that saves cookies.txt (Netscape) format. For YouTube, sign in from a private window, export, and close that window, or the browser soon replaces the cookies." />
         </StackPanel>
       </Border>
 
