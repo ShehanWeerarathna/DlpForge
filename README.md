@@ -28,7 +28,7 @@ See [docs/FEATURES.md](docs/FEATURES.md) for what works today and what comes nex
 - Cut: download only parts of a video, picked on a timeline or by chapter, or split a video into one file per chapter.
 - SponsorBlock: remove or mark sponsor segments and other categories.
 - Scheduling: start downloads at a set time, with a tray mode that keeps DlpForge running when the window is closed.
-- Cookies from a browser or a cookies.txt file, for videos that need a signed-in session. Verify checks a cookies.txt file and asks YouTube whether it still signs you in.
+- Cookies from a browser or a cookies.txt file, for videos that need a signed-in session. **YouTube account**: sign in once in DlpForge's own browser window, which stays signed in, so **Refresh cookies** gets fresh YouTube cookies later without your password. Needs the Microsoft Edge WebView2 Runtime. Verify checks a cookies.txt file and asks YouTube whether it still signs you in.
 - Command templates (saved yt-dlp arguments, with import and export) and a Terminal page that runs yt-dlp directly.
 - Windows notifications with Open and Show in folder, and progress on the taskbar button.
 - Searchable, sortable history with thumbnails, and a log viewer for every download.

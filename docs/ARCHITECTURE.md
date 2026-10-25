@@ -61,6 +61,36 @@ link can never be read as an option.
 - Each cut part is queued as its own download with one `--download-sections` range and the part's times in
   the file name, so progress and retry work per part.
 
+## YouTube account window
+
+Settings > Cookies > YouTube account opens `YouTubeLogin`: WebView2 in a Windows Forms window on its own STA
+thread. It turns off password saving, autofill, downloads, permissions and dev tools. Until YouTube is signed in it
+opens any HTTPS page, because Google's sign-in passes through country domains (accounts.google.lk) and work or school
+accounts through their own sign-in page; after that, only Google (including country domains) and YouTube.
+
+- **Signing in finishes by itself**: as soon as YouTube sign-in cookies appear, the window saves and closes, with no
+  YouTube page shown. It checks on every page load and once a second. Google's last sign-in page can stall in
+  WebView2 (seen after a "make sure it's really you" check), so when Google is signed in but YouTube isn't after two
+  idle seconds, the window opens YouTube's sign-in once, which passes straight through with the Google session.
+
+- **It stays signed in.** The browser profile `youtube` lives in `data\webview2`, so **Refresh cookies** needs no
+  password while Google keeps the session. WebView2 encrypts its cookie store for the Windows user.
+- **Saving follows yt-dlp's guide**: the window goes to `youtube.com/robots.txt`, where no YouTube script runs that
+  could replace the cookies, reads them through the cookie manager (HttpOnly ones included), writes only YouTube
+  cookies with `YouTubeCookieExport`, and closes, so nothing uses that session afterwards.
+- **Refresh** opens YouTube so Google can renew the session, waits three seconds, then saves and closes by itself.
+  If the session has ended it asks to sign in again.
+- **Opening YouTube there can renew the session**, which makes the file in use stale, so when an account is in use
+  the window saves fresh cookies again as it closes.
+- **Each save is a new file**, `data\cookies\youtube-<id>.txt`, because a running download writes its copy of the
+  cookies back into the file it was given when it ends. Older files are deleted when nothing is downloading and
+  on startup; they hold account credentials.
+- **Sign out** opens Google's sign-out page (ending the session for every copy of the cookies), clears the profile's
+  browsing data, deletes the saved files and turns cookies off if they were in use.
+- It needs the Microsoft Edge WebView2 Runtime. Google can refuse sign-in in an embedded browser; the window spots
+  its "rejected" page and points to browser cookies or a cookies.txt file. The flow is written independently; no
+  YT-Forge or YTDLnis code is used.
+
 ## Data
 
 - **Settings**: `settings.json`, saved on every change.

@@ -86,6 +86,20 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public ObservableCollection<CheckNoteViewModel> CookieNotes { get; } = [];
     [ObservableProperty][NotifyPropertyChangedFor(nameof(ShowCookieCheck))] private string _cookieCheckStatus = "";
     public bool ShowCookieCheck => IsCookieFile && (CookieNotes.Count > 0 || CookieCheckStatus.Length > 0);
+
+    /// <summary>When DlpForge's YouTube window last saved cookies; null when no account is signed in there.</summary>
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(IsYouTubeLinked), nameof(YouTubeSignInLabel), nameof(YouTubeAccountStatus))]
+    private DateTimeOffset? _youTubeSavedAt;
+    [ObservableProperty][NotifyCanExecuteChangedFor(nameof(SignInYouTubeCommand), nameof(RefreshYouTubeCommand), nameof(SignOutYouTubeCommand))]
+    private bool _isYouTubeBusy;
+    public bool IsYouTubeLinked => YouTubeSavedAt != null;
+    public string YouTubeSignInLabel => IsYouTubeLinked ? "Open YouTube…" : "Sign in…";
+    private bool IsYouTubeInUse => IsCookieFile && YouTubeCookieExport.IsSavedFile(_services.Paths.DataDir, CookieFile);
+    public string YouTubeAccountStatus => YouTubeSavedAt is { } at
+        ? $"Signed in. Cookies saved {at.ToLocalTime():d MMM yyyy, HH:mm}. " + (IsYouTubeInUse
+            ? "If YouTube stops accepting them, click Refresh cookies; no password needed."
+            : "Not in use now: click Refresh cookies to use this account for downloads.")
+        : "Sign in once in DlpForge's own browser window. It stays signed in, so you can refresh the cookies later without your password.";
     private CancellationTokenSource? _cookieCheck;
     public ObservableCollection<SponsorBlockCategoryViewModel> SponsorBlockCategories { get; } = [];
     public ObservableCollection<CommandTemplateViewModel> CommandTemplates { get; } = [];
@@ -132,6 +146,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _closeToTray = S.CloseToTray;
         _services.Client.Cookies = S.Cookies;
         CookieNotes.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowCookieCheck));
+        _youTubeSavedAt = S.YouTubeCookiesSavedAt;
+        DeleteOldYouTubeFiles();
 
         foreach (var c in SponsorBlock.Categories)
         {
@@ -182,6 +198,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         // A result for another file or mode would mislead.
         _cookieCheck?.Cancel();
         CookieNotes.Clear();
+        OnPropertyChanged(nameof(YouTubeAccountStatus));
     }
 
     private void SaveSponsorBlock()
@@ -195,6 +212,72 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private async Task BrowseCookieFile()
     {
         if (await Dialogs.OpenFileAsync("Choose a cookies.txt file", Dialogs.CookieFiles) is { } path) CookieFile = path;
+    }
+
+    // ---- YouTube account (DlpForge's own browser window) ----
+
+    private bool CanUseYouTube() => !IsYouTubeBusy;
+
+    [RelayCommand(CanExecute = nameof(CanUseYouTube))]
+    private Task SignInYouTube() => RunYouTubeAsync(YouTubeLoginMode.SignIn);
+
+    [RelayCommand(CanExecute = nameof(CanUseYouTube))]
+    private Task RefreshYouTube() => RunYouTubeAsync(YouTubeLoginMode.Refresh);
+
+    [RelayCommand(CanExecute = nameof(CanUseYouTube))]
+    private Task SignOutYouTube() => RunYouTubeAsync(YouTubeLoginMode.SignOut);
+
+    private async Task RunYouTubeAsync(YouTubeLoginMode mode)
+    {
+        IsYouTubeBusy = true;
+        try
+        {
+            var result = await YouTubeLogin.ShowAsync(_services.Paths.DataDir, mode, keepInSync: IsYouTubeLinked);
+            if (result.SignedOut) ForgetYouTube();
+            else if (result.SavedPath is { } path) await UseYouTubeCookiesAsync(path);
+        }
+        catch (Exception)
+        {
+            NotificationService.ShowInApp("Couldn't open the YouTube window",
+                "Try again, or use cookies from a browser or a cookies.txt file.", error: true);
+        }
+        finally
+        {
+            IsYouTubeBusy = false;
+        }
+    }
+
+    private async Task UseYouTubeCookiesAsync(string path)
+    {
+        YouTubeSavedAt = DateTimeOffset.Now;
+        Save(s => s.YouTubeCookiesSavedAt = YouTubeSavedAt);
+        SelectedCookieMode = CookieModeChoices.First(c => c.Value == CookieMode.File);
+        CookieFile = path;
+        DeleteOldYouTubeFiles();
+        await VerifyCookieFileCommand.ExecuteAsync(null);
+    }
+
+    private void ForgetYouTube()
+    {
+        YouTubeSavedAt = null;
+        Save(s => s.YouTubeCookiesSavedAt = null);
+        if (YouTubeCookieExport.IsSavedFile(_services.Paths.DataDir, CookieFile))
+        {
+            if (IsCookieFile) SelectedCookieMode = CookieModeChoices.First(c => c.Value == CookieMode.None);
+            CookieFile = "";
+        }
+        YouTubeCookieExport.DeleteSavedFiles(_services.Paths.DataDir, keep: null);
+        NotificationService.ShowInApp("Signed out of YouTube", "DlpForge deleted its browser data and the YouTube cookies it saved.");
+    }
+
+    /// <summary>
+    /// Saved cookies files hold account credentials, so only the one in use is kept. A running download may
+    /// still read an older one, so those wait until nothing is downloading.
+    /// </summary>
+    private void DeleteOldYouTubeFiles()
+    {
+        if (_services.Queue.Items.Any(i => i.IsActive)) return;
+        YouTubeCookieExport.DeleteSavedFiles(_services.Paths.DataDir, keep: CookieFile);
     }
 
     /// <summary>
@@ -224,7 +307,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
             }
             CookieCheckStatus = "Asking YouTube whether these cookies sign you in…";
             var signIn = await Task.Run(() => _services.Client.TestYouTubeSignInAsync(path, cts.Token));
-            if (!cts.IsCancellationRequested) CookieNotes.Add(new CheckNoteViewModel(signIn));
+            if (cts.IsCancellationRequested) return;
+            CookieNotes.Add(new CheckNoteViewModel(signIn));
+            if (signIn.Level == NoteLevel.Error && IsYouTubeLinked && YouTubeCookieExport.IsSavedFile(_services.Paths.DataDir, path))
+                CookieNotes.Add(new CheckNoteViewModel(new CheckNote(NoteLevel.Info,
+                    "These cookies came from DlpForge's YouTube window: click Refresh cookies under YouTube account to get fresh ones.")));
         }
         catch (OperationCanceledException)
         {

@@ -124,6 +124,21 @@
             <TextBlock Text="Use cookies" VerticalAlignment="Center" />
             <ComboBox x:Name="CookieModeBox" Grid.Column="1" MinWidth="220" ItemsSource="{Binding CookieModeChoices}" SelectedItem="{Binding SelectedCookieMode}" />
           </Grid>
+          <Grid ColumnDefinitions="190,*">
+            <TextBlock Text="YouTube account" Margin="0,6,0,0" />
+            <StackPanel Grid.Column="1" Spacing="5">
+              <WrapPanel>
+                <Button x:Name="SignInYouTubeButton" Margin="0,0,6,0" Content="{Binding YouTubeSignInLabel}" Command="{Binding SignInYouTubeCommand}"
+                        ToolTip.Tip="Opens DlpForge's own browser window for YouTube. Only YouTube cookies are saved, in DlpForge's data folder." />
+                <Button x:Name="RefreshYouTubeButton" Margin="0,0,6,0" Content="Refresh cookies" Command="{Binding RefreshYouTubeCommand}"
+                        IsVisible="{Binding IsYouTubeLinked}"
+                        ToolTip.Tip="Opens YouTube in the signed-in window, saves fresh cookies and closes. No password needed while Google keeps you signed in." />
+                <Button x:Name="SignOutYouTubeButton" Content="Sign out" Command="{Binding SignOutYouTubeCommand}" IsVisible="{Binding IsYouTubeLinked}"
+                        ToolTip.Tip="Signs out of Google and deletes the window's browser data and the YouTube cookies DlpForge saved." />
+              </WrapPanel>
+              <TextBlock Classes="subtle" TextWrapping="Wrap" Text="{Binding YouTubeAccountStatus}" />
+            </StackPanel>
+          </Grid>
           <Grid ColumnDefinitions="190,Auto,Auto" IsVisible="{Binding IsCookieBrowser}">
             <TextBlock Text="Browser and profile" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" MinWidth="140" ItemsSource="{Binding CookieBrowsers}" SelectedItem="{Binding CookieBrowser}" />
@@ -157,7 +172,7 @@
             </ItemsControl>
           </StackPanel>
           <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding IsCookieFile}"
-                     Text="Export cookies with a browser extension that saves cookies.txt (Netscape) format. For YouTube, sign in from a private window, export, and close that window, or the browser soon replaces the cookies." />
+                     Text="For cookies from another browser, export them with an extension that saves cookies.txt (Netscape) format. For YouTube, the YouTube account above is easier: an exported file stops working once the browser replaces its cookies." />
         </StackPanel>
       </Border>
 

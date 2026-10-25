@@ -37,6 +37,8 @@ public sealed class AppSettings
     public string CookieBrowser { get; set; } = "firefox";
     public string CookieProfile { get; set; } = "";
     public string CookieFile { get; set; } = "";
+    /// <summary>When DlpForge's YouTube window last saved cookies. Null when no account is signed in there.</summary>
+    public DateTimeOffset? YouTubeCookiesSavedAt { get; set; }
 
     /// <summary>Whether the SponsorBlock box on the download card starts ticked.</summary>
     public bool SponsorBlockByDefault { get; set; }
@@ -49,6 +51,7 @@ public sealed class AppSettings
     /// <summary>Recent terminal commands, newest last.</summary>
     public List<string> TerminalHistory { get; set; } = [];
 
+    [JsonIgnore]
     public CookieOptions Cookies => new()
     {
         Mode = CookieMode,
