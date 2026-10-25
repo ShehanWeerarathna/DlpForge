@@ -22,24 +22,32 @@ adapted for a desktop. Priority: **MVP** = version 1, **v1.1** = first follow-up
 
 ## v1.1
 
-| Feature | Desktop version |
-| --- | --- |
-| Search inside the app | `ytsearchN:` results in the playlist grid (works today by typing `ytsearch10:words` in the link bar) |
-| Quick download mode | Skip the card and use the last settings |
-| Cookies | `--cookies-from-browser` for Chrome, Edge, Firefox, or a cookies.txt file |
-| Scheduling | Date and time picker on queued items; tray mode |
-| Cut by timestamps or chapters | `--download-sections` with a timeline |
-| SponsorBlock | Per-category remove or mark as chapters |
-| Split by chapters | `--split-chapters` toggle |
-| Edit metadata before download | Editable title and artist |
-| Custom commands and terminal | Saved argument templates, import/export, terminal pane |
-| Import list | Text file of links, playlists or searches (multi-link drop already queues them) |
+Shipped in version 0.2.
+
+| Feature | Desktop version | Status in 0.2 |
+| --- | --- | --- |
+| Search inside the app | Words typed in the link bar search YouTube; results open in the list grid, unticked, with a result count set in Settings. `ytsearchN:` and other yt-dlp search prefixes still work | Done |
+| Quick download mode | ⚡ Quick switch next to the link bar (also in Settings) and Shift+Enter: links skip the card and reuse the settings picked last time | Done |
+| Cookies | Settings > Cookies: from Firefox, Chrome, Edge, Brave, Opera, Vivaldi, Chromium or Whale (with an optional profile), or a cookies.txt file. Used by every yt-dlp call | Done |
+| Scheduling | "Start at a set time" on the card, Schedule / Start now on queued items, a Scheduled tab; tray mode keeps DlpForge running with the window closed | Done |
+| Cut by timestamps or chapters | Timeline with drag handles and From/To boxes, several parts, chapter ticks; each part is its own file. Optional precise cuts | Done |
+| SponsorBlock | Per-category Off / Mark as chapter / Remove in Settings; a box on the card, ticked by default if you want | Done |
+| Split by chapters | "Also save one file per chapter" on the card (`--split-chapters`) | Done |
+| Edit metadata before download | Title and Artist on the card; the new title also names the file | Done |
+| Custom commands and terminal | Command templates in Settings with import/export to JSON; Extra arguments on the card; a Terminal page that runs yt-dlp with any arguments | Done |
+| Import list | Import list button or drop a .txt file: links, playlists, searches and plain words (searched), one per line; all videos open in one card | Done |
+
+Also fixed in 0.2:
+
+- File paths with characters outside the Windows code page (Sinhala, Japanese, fullwidth punctuation, en dashes) were garbled in yt-dlp's output, which broke Open and Show in folder. Every call now passes `--encoding utf-8`.
+- Downloads into deep folders could fail on Windows' 260-character path limit. DlpForge now passes `--trim-filenames` sized to the download folder, and explains the error if it still happens.
+- Items queued straight from links (several pasted links, quick download) now get their real title, thumbnail and length when the download starts.
 
 ## Later
 
 | Feature | Desktop version |
 | --- | --- |
-| Share-menu equivalent | Tray icon, global hotkey, clipboard watcher, browser extension, `dlpforge://` links |
+| Share-menu equivalent | Global hotkey, clipboard watcher, browser extension, `dlpforge://` links (the tray icon came in 0.2) |
 | Incognito mode | No history or logs for those items |
 | Backup and restore | Settings, templates and history in one file |
 | Accent colour and Mica | Windows 11 look |
@@ -47,15 +55,18 @@ adapted for a desktop. Priority: **MVP** = version 1, **v1.1** = first follow-up
 | Translations | Strings externalised, community translation |
 | Desktop extras | Keyboard shortcuts for all actions, channel subscriptions with `--download-archive`, bandwidth limits by time of day |
 
-## Keyboard shortcuts in 0.1
+## Keyboard shortcuts
 
 | Keys | Action |
 | --- | --- |
 | Ctrl+L | Focus the link bar |
-| Enter (in the link bar) | Open the download card |
+| Enter (in the link bar) | Open the download card, or search for the words typed |
+| Shift+Enter (in the link bar) | Quick download: queue the link with the last settings |
 | Ctrl+V (outside a text box) | Paste the clipboard link and open it |
 | Esc | Close the download card |
-| Ctrl+1 / 2 / 3 | Downloads / History / Settings |
+| Ctrl+1 / 2 / 3 / 4 | Downloads / History / Settings / Terminal |
 | Ctrl+F (History) | Search |
 | Delete | Remove the selected download or history entry |
-| Space (playlist list) | Tick or untick the highlighted rows |
+| Space (list of items) | Tick or untick the highlighted rows |
+| Left / Right (cut timeline) | Move the end of the part by one second; with Shift, the start |
+| Up / Down (Terminal) | Earlier commands |

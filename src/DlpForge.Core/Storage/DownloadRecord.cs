@@ -21,4 +21,6 @@ public sealed record DownloadRecord
     public DateTimeOffset? CompletedAt { get; init; }
     /// <summary>Removed from the Downloads view with "Clear finished" but still listed in History.</summary>
     public bool HiddenFromQueue { get; init; }
+    /// <summary>A queued download waits until this time before it starts. Null starts as soon as there is room.</summary>
+    public DateTimeOffset? ScheduledAt { get; init; }
 }

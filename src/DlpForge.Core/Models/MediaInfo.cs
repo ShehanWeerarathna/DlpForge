@@ -9,6 +9,8 @@ public sealed class MediaInfo
     public string Url { get; init; } = "";
     public string Title { get; init; } = "";
     public string? Uploader { get; init; }
+    /// <summary>The music artist when the site lists one (YouTube Music, Bandcamp and the like).</summary>
+    public string? Artist { get; init; }
     public string? Extractor { get; init; }
     public string? Thumbnail { get; init; }
     public double? DurationSeconds { get; init; }
@@ -16,7 +18,8 @@ public sealed class MediaInfo
     public IReadOnlyList<FormatInfo> Formats { get; init; } = [];
     public IReadOnlyList<PlaylistEntry> Entries { get; init; } = [];
     public IReadOnlyList<string> SubtitleLanguages { get; init; } = [];
-    public int ChapterCount { get; init; }
+    public IReadOnlyList<ChapterInfo> Chapters { get; init; } = [];
+    public int ChapterCount => Chapters.Count;
 
     public static MediaInfo Parse(string json, string sourceUrl)
     {
@@ -62,8 +65,18 @@ public sealed class MediaInfo
         if (root.TryGetProperty("subtitles", out var s) && s.ValueKind == JsonValueKind.Object)
             subs.AddRange(s.EnumerateObject().Select(p => p.Name).Where(n => n != "live_chat"));
 
-        int chapters = root.TryGetProperty("chapters", out var ch) && ch.ValueKind == JsonValueKind.Array
-            ? ch.GetArrayLength() : 0;
+        var chapters = new List<ChapterInfo>();
+        if (root.TryGetProperty("chapters", out var ch) && ch.ValueKind == JsonValueKind.Array)
+        {
+            int n = 1;
+            foreach (var c in ch.EnumerateArray())
+            {
+                int number = n++;
+                var start = c.Num("start_time") ?? 0;
+                var end = c.Num("end_time") ?? root.Num("duration") ?? start;
+                chapters.Add(new ChapterInfo(number, c.Str("title") ?? $"Chapter {number}", start, end));
+            }
+        }
 
         return new MediaInfo
         {
@@ -71,6 +84,7 @@ public sealed class MediaInfo
             Url = root.Str("webpage_url") ?? root.Str("original_url") ?? sourceUrl,
             Title = root.Str("title") ?? sourceUrl,
             Uploader = root.Str("uploader") ?? root.Str("channel"),
+            Artist = root.Str("artist") ?? FirstString(root, "artists") ?? FirstString(root, "creators"),
             Extractor = root.Str("extractor_key") ?? root.Str("extractor"),
             Thumbnail = BestThumbnail(root),
             DurationSeconds = root.Num("duration"),
@@ -78,9 +92,14 @@ public sealed class MediaInfo
             Formats = formats,
             Entries = entries,
             SubtitleLanguages = subs,
-            ChapterCount = chapters,
+            Chapters = chapters,
         };
     }
+
+    private static string? FirstString(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array
+            ? v.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()).FirstOrDefault()
+            : null;
 
     internal static string? BestThumbnail(JsonElement e)
     {
@@ -92,6 +111,36 @@ public sealed class MediaInfo
             return t.EnumerateArray().Select(x => x.Str("url")).LastOrDefault(u => u != null);
         }
         return null;
+    }
+}
+
+/// <summary>One chapter of a video, with start and end in seconds.</summary>
+public sealed record ChapterInfo(int Number, string Title, double Start, double End)
+{
+    public TimeRange Range => new(Start, End);
+}
+
+/// <summary>
+/// Title and friends as yt-dlp reports them when a download starts. Fills in items that were queued
+/// straight from a link, before DlpForge knew what they were.
+/// </summary>
+public sealed record MediaMeta(string? Title, string? Uploader, double? DurationSeconds, string? Thumbnail)
+{
+    public static MediaMeta? Parse(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            if (r.ValueKind != JsonValueKind.Object) return null;
+            // Missing fields come through as the text "NA".
+            static string? S(JsonElement e, string n) => e.Str(n) is { } v && v != "NA" && v.Length > 0 ? v : null;
+            return new MediaMeta(S(r, "title"), S(r, "uploader") ?? S(r, "channel"), r.Num("duration"), S(r, "thumbnail"));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }
 

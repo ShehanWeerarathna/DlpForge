@@ -11,16 +11,25 @@ Website: https://shehanweerarathna.github.io/DlpForge/
 
 ## Status
 
-Version 0.1, the first MVP build. See [docs/FEATURES.md](docs/FEATURES.md) for what works today and what comes next.
+Version 0.2: the MVP plus the v1.1 features (search, quick download, cookies, scheduling and tray mode,
+cutting, SponsorBlock, split by chapters, metadata editing, command templates and a terminal, import lists).
+See [docs/FEATURES.md](docs/FEATURES.md) for what works today and what comes next.
 
 ## Features in this build
 
-- Link bar that is always visible: paste a link, press Enter, or drop links, `.url` shortcuts and `.txt` link lists onto the window.
+- Link bar that is always visible: paste a link and press Enter, type words to search YouTube, or drop links, `.url` shortcuts and `.txt` lists onto the window.
+- Quick download (⚡ Quick or Shift+Enter): links skip the download card and reuse the last settings.
+- Import lists: a text file of links, playlists and searches opens as one list to pick from.
 - Download card with thumbnail, title, video/audio switch, quality presets, container or audio format, and an exact-format table.
 - Playlists: every item listed with checkboxes, select all / none / invert, and Shift or Ctrl multi-select.
 - Queue with parallel downloads (1 to 10), live progress, speed and ETA, pause, resume, cancel and retry. The queue survives restarts.
 - Download folders per type and file name templates with a live preview.
-- Embed thumbnail, metadata, chapters and subtitles.
+- Embed thumbnail, metadata, chapters and subtitles. Edit the title and artist before downloading.
+- Cut: download only parts of a video, picked on a timeline or by chapter, or split a video into one file per chapter.
+- SponsorBlock: remove or mark sponsor segments and other categories.
+- Scheduling: start downloads at a set time, with a tray mode that keeps DlpForge running when the window is closed.
+- Cookies from a browser or a cookies.txt file, for videos that need a signed-in session.
+- Command templates (saved yt-dlp arguments, with import and export) and a Terminal page that runs yt-dlp directly.
 - Windows notifications with Open and Show in folder, and progress on the taskbar button.
 - Searchable, sortable history with thumbnails, and a log viewer for every download.
 - Tools page that installs and updates yt-dlp, FFmpeg and Deno, switches yt-dlp channels and rolls back to a version.

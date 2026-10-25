@@ -43,6 +43,16 @@
             <NumericUpDown Grid.Column="1" Minimum="1" Maximum="10" Increment="1" FormatString="0" Width="130"
                            Value="{Binding MaxConcurrent}" />
           </Grid>
+          <Grid ColumnDefinitions="190,Auto,*">
+            <TextBlock Text="Search results" VerticalAlignment="Center" />
+            <NumericUpDown Grid.Column="1" Minimum="1" Maximum="100" Increment="5" FormatString="0" Width="130"
+                           Value="{Binding SearchResultCount}" />
+            <TextBlock Grid.Column="2" Classes="subtle" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                       Text="Words typed in the link bar search YouTube and list this many results." />
+          </Grid>
+          <CheckBox x:Name="QuickDownloadSetting" IsChecked="{Binding QuickDownload}">
+            <TextBlock TextWrapping="Wrap" Text="Quick download: links skip the download card and use the settings picked last time (also the ⚡ Quick switch next to the link bar)" />
+          </CheckBox>
         </StackPanel>
       </Border>
 
@@ -82,6 +92,83 @@
             <ComboBox Grid.Column="1" MinWidth="200" ItemsSource="{Binding ThemeChoices}" SelectedItem="{Binding Theme}" />
           </Grid>
           <CheckBox Content="Show a Windows notification when a download finishes or fails" IsChecked="{Binding ShowNotifications}" />
+          <CheckBox x:Name="CloseToTraySetting" IsChecked="{Binding CloseToTray}">
+            <TextBlock TextWrapping="Wrap" Text="Keep running in the tray when the window is closed, so downloads and scheduled downloads continue" />
+          </CheckBox>
+        </StackPanel>
+      </Border>
+
+      <!-- Cookies -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h2" Text="Cookies" />
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Some videos need you to be signed in (age checks, members-only, private playlists). yt-dlp can use the cookies of a browser where you are signed in, or a cookies.txt file." />
+          <Grid ColumnDefinitions="190,Auto">
+            <TextBlock Text="Use cookies" VerticalAlignment="Center" />
+            <ComboBox x:Name="CookieModeBox" Grid.Column="1" MinWidth="220" ItemsSource="{Binding CookieModeChoices}" SelectedItem="{Binding SelectedCookieMode}" />
+          </Grid>
+          <Grid ColumnDefinitions="190,Auto,Auto" IsVisible="{Binding IsCookieBrowser}">
+            <TextBlock Text="Browser and profile" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" MinWidth="140" ItemsSource="{Binding CookieBrowsers}" SelectedItem="{Binding CookieBrowser}" />
+            <TextBox Grid.Column="2" Margin="8,0,0,0" Width="220" Text="{Binding CookieProfile}" PlaceholderText="Profile (optional)" />
+          </Grid>
+          <TextBlock Classes="subtle" TextWrapping="Wrap" IsVisible="{Binding IsCookieBrowser}"
+                     Text="Firefox works best. Chrome, Edge and other Chromium browsers lock and encrypt their cookies on Windows; close the browser first, and if it still fails, export a cookies.txt file instead." />
+          <Grid ColumnDefinitions="190,*,Auto" IsVisible="{Binding IsCookieFile}">
+            <TextBlock Text="cookies.txt file" VerticalAlignment="Center" />
+            <TextBox Grid.Column="1" Text="{Binding CookieFile}" PlaceholderText="Netscape-format cookies file" />
+            <Button Grid.Column="2" Margin="8,0,0,0" Content="Browse…" Command="{Binding BrowseCookieFileCommand}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- SponsorBlock -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <TextBlock Classes="h2" Text="SponsorBlock" />
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Uses the community SponsorBlock database to cut out or mark parts of YouTube videos. Marked parts become chapters. Removing needs FFmpeg." />
+          <CheckBox x:Name="SponsorBlockDefaultSetting" Content="Tick SponsorBlock on the download card by default" IsChecked="{Binding SponsorBlockByDefault}" />
+          <ItemsControl ItemsSource="{Binding SponsorBlockCategories}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SponsorBlockCategoryViewModel">
+                <Grid ColumnDefinitions="190,170,*" Margin="0,2">
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Choices}" SelectedItem="{Binding Action}" />
+                  <TextBlock Grid.Column="2" Classes="subtle" Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding Description}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Command templates -->
+      <Border Classes="panel" Padding="16">
+        <StackPanel Spacing="10">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="h2" Text="Command templates" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+              <Button Content="Add" Command="{Binding AddTemplateCommand}" />
+              <Button Content="Import…" Command="{Binding ImportTemplatesCommand}" />
+              <Button Content="Export…" Command="{Binding ExportTemplatesCommand}" />
+            </StackPanel>
+          </Grid>
+          <TextBlock Classes="subtle" TextWrapping="Wrap"
+                     Text="Saved yt-dlp arguments. Pick one under Extra arguments on the download card, or insert it in the Terminal." />
+          <ItemsControl ItemsSource="{Binding CommandTemplates}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandTemplateViewModel">
+                <Grid ColumnDefinitions="220,*,Auto" Margin="0,3">
+                  <TextBox Text="{Binding Name}" PlaceholderText="Name" />
+                  <TextBox Grid.Column="1" Margin="8,0,0,0" Text="{Binding Arguments}" PlaceholderText="Arguments, e.g. --write-description"
+                           FontFamily="Cascadia Mono,Consolas,monospace" />
+                  <Button Grid.Column="2" Margin="8,0,0,0" Classes="icon" Content="Remove" Command="{Binding RemoveCommand}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
       </Border>
 

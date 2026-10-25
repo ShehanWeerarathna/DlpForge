@@ -6,7 +6,7 @@ namespace DlpForge.Core.Tests;
 
 public class ArgumentBuilderTests
 {
-    private static readonly ArgumentBuilder.ToolOptions NoTools = new(null, null);
+    private static readonly ArgumentBuilder.CommonOptions NoTools = new(null, null);
 
     [Fact]
     public void Video_download_uses_height_limited_selector_and_merge_format()

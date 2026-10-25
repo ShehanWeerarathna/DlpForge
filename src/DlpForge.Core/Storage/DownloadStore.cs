@@ -34,6 +34,21 @@ public sealed class DownloadStore
             );
             CREATE INDEX IF NOT EXISTS ix_downloads_created ON downloads(created_at);
             """);
+        Migrate(c);
+    }
+
+    /// <summary>Adds columns that newer versions use to a database made by an older one.</summary>
+    private static void Migrate(SqliteConnection c)
+    {
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA table_info(downloads)";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) columns.Add(r.GetString(1));
+        }
+        // 0.2: scheduled downloads.
+        if (!columns.Contains("scheduled_at")) Exec(c, "ALTER TABLE downloads ADD COLUMN scheduled_at TEXT");
     }
 
     private SqliteConnection Open()
@@ -58,15 +73,15 @@ public sealed class DownloadStore
             using var cmd = c.CreateCommand();
             cmd.CommandText = """
                 INSERT INTO downloads (id, url, title, uploader, thumbnail, duration, options, status, file_path,
-                                       size_bytes, error, log_path, created_at, completed_at, hidden)
+                                       size_bytes, error, log_path, created_at, completed_at, hidden, scheduled_at)
                 VALUES ($id, $url, $title, $uploader, $thumb, $duration, $options, $status, $file,
-                        $size, $error, $log, $created, $completed, $hidden)
+                        $size, $error, $log, $created, $completed, $hidden, $scheduled)
                 ON CONFLICT(id) DO UPDATE SET
                     url = excluded.url, title = excluded.title, uploader = excluded.uploader,
                     thumbnail = excluded.thumbnail, duration = excluded.duration, options = excluded.options,
                     status = excluded.status, file_path = excluded.file_path, size_bytes = excluded.size_bytes,
                     error = excluded.error, log_path = excluded.log_path, completed_at = excluded.completed_at,
-                    hidden = excluded.hidden;
+                    hidden = excluded.hidden, scheduled_at = excluded.scheduled_at;
                 """;
             cmd.Parameters.AddWithValue("$id", r.Id);
             cmd.Parameters.AddWithValue("$url", r.Url);
@@ -83,6 +98,7 @@ public sealed class DownloadStore
             cmd.Parameters.AddWithValue("$created", r.CreatedAt.ToString("O"));
             cmd.Parameters.AddWithValue("$completed", (object?)r.CompletedAt?.ToString("O") ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$hidden", r.HiddenFromQueue ? 1 : 0);
+            cmd.Parameters.AddWithValue("$scheduled", (object?)r.ScheduledAt?.ToString("O") ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -128,6 +144,7 @@ public sealed class DownloadStore
                     CreatedAt = DateTimeOffset.Parse(r.GetString(r.GetOrdinal("created_at"))),
                     CompletedAt = Get<string>(r, "completed_at") is { } done ? DateTimeOffset.Parse(done) : null,
                     HiddenFromQueue = r.GetInt64(r.GetOrdinal("hidden")) != 0,
+                    ScheduledAt = Get<string>(r, "scheduled_at") is { } at ? DateTimeOffset.Parse(at) : null,
                 });
             }
             return list;

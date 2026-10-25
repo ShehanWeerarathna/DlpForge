@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using Avalonia.Controls;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -47,6 +45,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> VideoContainers => Defaults.VideoContainers;
     public IReadOnlyList<string> Channels { get; } = ["stable", "nightly", "master"];
 
+    public IReadOnlyList<Choice<CookieMode>> CookieModeChoices { get; } =
+    [
+        new(CookieMode.None, "Don't use cookies"),
+        new(CookieMode.Browser, "From a browser"),
+        new(CookieMode.File, "From a cookies.txt file"),
+    ];
+    public IReadOnlyList<string> CookieBrowsers => CookieOptions.Browsers;
+
     [ObservableProperty] private string _videoFolder;
     [ObservableProperty] private string _audioFolder;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(FilenamePreview))] private string _filenameTemplate;
@@ -65,6 +71,22 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _showNotifications;
     [ObservableProperty] private string _ytDlpChannel;
     [ObservableProperty] private string _rollbackTag = "";
+
+    [ObservableProperty] private bool _quickDownload;
+    [ObservableProperty] private decimal _searchResultCount;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(IsCookieBrowser), nameof(IsCookieFile))] private Choice<CookieMode> _selectedCookieMode;
+    [ObservableProperty] private string _cookieBrowser;
+    [ObservableProperty] private string _cookieProfile;
+    [ObservableProperty] private string _cookieFile;
+    [ObservableProperty] private bool _sponsorBlockByDefault;
+    [ObservableProperty] private bool _closeToTray;
+    public bool IsCookieBrowser => SelectedCookieMode.Value == CookieMode.Browser;
+    public bool IsCookieFile => SelectedCookieMode.Value == CookieMode.File;
+    public ObservableCollection<SponsorBlockCategoryViewModel> SponsorBlockCategories { get; } = [];
+    public ObservableCollection<CommandTemplateViewModel> CommandTemplates { get; } = [];
+
+    /// <summary>Raised when "Keep running in the tray" changes, so the tray icon can show or hide.</summary>
+    public event Action<bool>? CloseToTrayChanged;
 
     public ObservableCollection<ToolViewModel> Tools { get; } = [];
     [ObservableProperty] private string _toolLog = "";
@@ -95,6 +117,22 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _theme = ThemeChoices.First(c => c.Value == S.Theme);
         _showNotifications = S.ShowNotifications;
         _ytDlpChannel = S.YtDlpChannel;
+        _quickDownload = S.QuickDownload;
+        _searchResultCount = Math.Clamp(S.SearchResultCount, 1, 100);
+        _selectedCookieMode = CookieModeChoices.First(c => c.Value == S.CookieMode);
+        _cookieBrowser = CookieOptions.Browsers.Contains(S.CookieBrowser) ? S.CookieBrowser : "firefox";
+        _cookieProfile = S.CookieProfile;
+        _cookieFile = S.CookieFile;
+        _sponsorBlockByDefault = S.SponsorBlockByDefault;
+        _closeToTray = S.CloseToTray;
+        _services.Client.Cookies = S.Cookies;
+
+        foreach (var c in SponsorBlock.Categories)
+        {
+            var action = S.SponsorBlockActions.GetValueOrDefault(c.Id, SponsorBlockAction.Off);
+            SponsorBlockCategories.Add(new SponsorBlockCategoryViewModel(c, action, SaveSponsorBlock));
+        }
+        foreach (var t in S.CommandTemplates) AddTemplateRow(t);
 
         foreach (var kind in new[] { ToolKind.YtDlp, ToolKind.Ffmpeg, ToolKind.Deno })
             Tools.Add(new ToolViewModel(kind, InstallAsync));
@@ -117,6 +155,96 @@ public sealed partial class SettingsViewModel : ViewModelBase
     partial void OnSubtitleLanguagesChanged(string value) => Save(s => s.SubtitleLanguages = value);
     partial void OnShowNotificationsChanged(bool value) => Save(s => s.ShowNotifications = value);
     partial void OnYtDlpChannelChanged(string value) => Save(s => s.YtDlpChannel = value);
+    partial void OnQuickDownloadChanged(bool value) => Save(s => s.QuickDownload = value);
+    partial void OnSearchResultCountChanged(decimal value) => Save(s => s.SearchResultCount = Math.Clamp((int)value, 1, 100));
+    partial void OnSelectedCookieModeChanged(Choice<CookieMode> value) => SaveCookies(s => s.CookieMode = value.Value);
+    partial void OnCookieBrowserChanged(string value) => SaveCookies(s => s.CookieBrowser = value);
+    partial void OnCookieProfileChanged(string value) => SaveCookies(s => s.CookieProfile = value.Trim());
+    partial void OnCookieFileChanged(string value) => SaveCookies(s => s.CookieFile = value.Trim());
+    partial void OnSponsorBlockByDefaultChanged(bool value) => Save(s => s.SponsorBlockByDefault = value);
+
+    partial void OnCloseToTrayChanged(bool value)
+    {
+        Save(s => s.CloseToTray = value);
+        CloseToTrayChanged?.Invoke(value);
+    }
+
+    private void SaveCookies(Action<AppSettings> change)
+    {
+        Save(change);
+        _services.Client.Cookies = S.Cookies;
+    }
+
+    private void SaveSponsorBlock()
+    {
+        Save(s => s.SponsorBlockActions = SponsorBlockCategories
+            .Where(c => c.Action.Value != SponsorBlockAction.Off)
+            .ToDictionary(c => c.Category.Id, c => c.Action.Value));
+    }
+
+    [RelayCommand]
+    private async Task BrowseCookieFile()
+    {
+        if (await Dialogs.OpenFileAsync("Choose a cookies.txt file", Dialogs.CookieFiles) is { } path) CookieFile = path;
+    }
+
+    // ---- Command templates ----
+
+    private void AddTemplateRow(CommandTemplate t) =>
+        CommandTemplates.Add(new CommandTemplateViewModel(t.Name, t.Arguments, SaveTemplates, RemoveTemplate));
+
+    private void RemoveTemplate(CommandTemplateViewModel row)
+    {
+        CommandTemplates.Remove(row);
+        SaveTemplates();
+    }
+
+    private void SaveTemplates()
+    {
+        Save(s => s.CommandTemplates = CommandTemplates
+            .Where(t => !string.IsNullOrWhiteSpace(t.Name) && !string.IsNullOrWhiteSpace(t.Arguments))
+            .Select(t => new CommandTemplate(t.Name.Trim(), t.Arguments.Trim()))
+            .ToList());
+    }
+
+    [RelayCommand]
+    private void AddTemplate() => AddTemplateRow(new CommandTemplate($"Template {CommandTemplates.Count + 1}", ""));
+
+    [RelayCommand]
+    private async Task ImportTemplates()
+    {
+        var path = await Dialogs.OpenFileAsync("Import command templates", Dialogs.JsonFiles);
+        if (path is null) return;
+        try
+        {
+            var incoming = CommandTemplate.Import(await File.ReadAllTextAsync(path));
+            var merged = CommandTemplate.Merge(S.CommandTemplates, incoming);
+            CommandTemplates.Clear();
+            foreach (var t in merged) AddTemplateRow(t);
+            SaveTemplates();
+            NotificationService.ShowInApp("Templates imported", $"{incoming.Count} templates from {Path.GetFileName(path)}.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            NotificationService.ShowInApp("Could not import templates", ex.Message, error: true);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExportTemplates()
+    {
+        var path = await Dialogs.SaveFileAsync("Export command templates", "dlpforge-templates.json", Dialogs.JsonFiles);
+        if (path is null) return;
+        try
+        {
+            await File.WriteAllTextAsync(path, CommandTemplate.Export(S.CommandTemplates));
+            NotificationService.ShowInApp("Templates exported", path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            NotificationService.ShowInApp("Could not export templates", ex.Message, error: true);
+        }
+    }
 
     partial void OnMaxConcurrentChanged(decimal value)
     {
@@ -140,16 +268,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task BrowseFolder(string which)
     {
-        var top = (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        if (top is null) return;
         var current = which == "audio" ? AudioFolder : VideoFolder;
-        var start = await top.StorageProvider.TryGetFolderFromPathAsync(current);
-        var result = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = which == "audio" ? "Folder for audio downloads" : "Folder for video downloads",
-            SuggestedStartLocation = start,
-        });
-        if (result.FirstOrDefault()?.TryGetLocalPath() is not { } path) return;
+        var title = which == "audio" ? "Folder for audio downloads" : "Folder for video downloads";
+        if (await Dialogs.PickFolderAsync(title, current) is not { } path) return;
         if (which == "audio") AudioFolder = path; else VideoFolder = path;
     }
 
@@ -257,6 +378,48 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         ToolLog = (ToolLog.Length > 20_000 ? ToolLog[^10_000..] : ToolLog) + line + Environment.NewLine;
     }
+}
+
+/// <summary>One SponsorBlock category row in Settings: off, mark as chapter, or remove.</summary>
+public sealed partial class SponsorBlockCategoryViewModel : ViewModelBase
+{
+    private readonly Action _changed;
+    public SponsorBlock.Category Category { get; }
+    public string Name => Category.Name;
+    public string Description => Category.Description;
+    public IReadOnlyList<Choice<SponsorBlockAction>> Choices { get; }
+
+    [ObservableProperty] private Choice<SponsorBlockAction> _action;
+
+    public SponsorBlockCategoryViewModel(SponsorBlock.Category category, SponsorBlockAction action, Action changed)
+    {
+        Category = category;
+        _changed = changed;
+        var choices = new List<Choice<SponsorBlockAction>>
+        {
+            new(SponsorBlockAction.Off, "Off"),
+            new(SponsorBlockAction.Mark, "Mark as chapter"),
+        };
+        if (category.CanRemove) choices.Add(new(SponsorBlockAction.Remove, "Remove"));
+        Choices = choices;
+        _action = choices.FirstOrDefault(c => c.Value == action) ?? choices[0];
+    }
+
+    partial void OnActionChanged(Choice<SponsorBlockAction> value) => _changed();
+}
+
+/// <summary>One editable command template row in Settings.</summary>
+public sealed partial class CommandTemplateViewModel(string name, string arguments, Action changed, Action<CommandTemplateViewModel> remove)
+    : ViewModelBase
+{
+    [ObservableProperty] private string _name = name;
+    [ObservableProperty] private string _arguments = arguments;
+
+    partial void OnNameChanged(string value) => changed();
+    partial void OnArgumentsChanged(string value) => changed();
+
+    [RelayCommand]
+    private void Remove() => remove(this);
 }
 
 public sealed partial class ToolViewModel : ViewModelBase

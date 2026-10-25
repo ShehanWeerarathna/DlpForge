@@ -33,13 +33,19 @@ public sealed class DownloadQueue
     /// <summary>Raised when overall progress changes: (active count, average percent 0-100).</summary>
     public event Action<int, double>? OverallProgressChanged;
 
+    private readonly Timer _scheduleTimer;
+
     public DownloadQueue(YtDlpClient client, DownloadStore store, AppPaths paths, SynchronizationContext uiContext)
     {
         _client = client;
         _store = store;
         _paths = paths;
         _ui = uiContext;
+        _scheduleTimer = new Timer(_ => _ui.Post(_ => OnScheduleDue(), null));
     }
+
+    /// <summary>The clock the queue uses for schedules. Tests replace it.</summary>
+    internal Func<DateTimeOffset> Now { get; set; } = () => DateTimeOffset.Now;
 
     /// <summary>Loads saved items. Downloads that were running when the app closed go back into the queue.</summary>
     public void Restore()
@@ -54,11 +60,11 @@ public sealed class DownloadQueue
             }
             Items.Add(item);
         }
-        Pump();
+        OnScheduleDue();
     }
 
     public DownloadItem Enqueue(string url, string title, DownloadOptions options,
-        string? thumbnail = null, string? uploader = null, double? duration = null)
+        string? thumbnail = null, string? uploader = null, double? duration = null, DateTimeOffset? scheduledAt = null)
     {
         var item = new DownloadItem(new DownloadRecord
         {
@@ -71,13 +77,61 @@ public sealed class DownloadQueue
             Options = options,
             Status = DownloadStatus.Queued,
             CreatedAt = DateTimeOffset.Now,
+            ScheduledAt = scheduledAt is { } at && at > Now() ? at : null,
         });
         item.LogPath = Path.Combine(_paths.LogsDir, item.Id + ".log");
         Items.Add(item);
         Save(item);
         Pump();
+        if (item.ScheduledAt != null) ArmScheduleTimer();
         return item;
     }
+
+    /// <summary>Sets or clears the start time of a queued or paused download. A time in the past starts it now.</summary>
+    public void Schedule(DownloadItem item, DateTimeOffset? at)
+    {
+        if (!item.CanSchedule) return;
+        item.ScheduledAt = at is { } t && t > Now() ? t : null;
+        if (item.Status == DownloadStatus.Paused) item.Status = DownloadStatus.Queued;
+        Save(item);
+        Pump();
+        ArmScheduleTimer();
+    }
+
+    /// <summary>Starts a scheduled or paused download as soon as there is room, ignoring its start time.</summary>
+    public void StartNow(DownloadItem item) => Schedule(item, null);
+
+    /// <summary>Clears the start time of items whose time has come, starts them, and sets the timer for the next one.</summary>
+    internal void OnScheduleDue()
+    {
+        var now = Now();
+        foreach (var i in Items.Where(i => i.Status == DownloadStatus.Queued && i.ScheduledAt is { } at && at <= now).ToList())
+        {
+            i.ScheduledAt = null;
+            Save(i);
+        }
+        Pump();
+        ArmScheduleTimer();
+    }
+
+    private void ArmScheduleTimer()
+    {
+        var next = Items.Where(i => i.Status == DownloadStatus.Queued && i.ScheduledAt != null)
+                        .Select(i => i.ScheduledAt!.Value).DefaultIfEmpty().Min();
+        if (next == default)
+        {
+            _scheduleTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            return;
+        }
+        // Wake at the next start time, but at least every hour so a changed system clock or sleep is noticed.
+        var wait = next - Now();
+        wait = wait < TimeSpan.Zero ? TimeSpan.Zero : wait > TimeSpan.FromHours(1) ? TimeSpan.FromHours(1) : wait;
+        _scheduleTimer.Change(wait + TimeSpan.FromMilliseconds(250), Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>A queued item that may start now: not waiting for a scheduled time.</summary>
+    internal bool IsReady(DownloadItem i) =>
+        i.Status == DownloadStatus.Queued && (i.ScheduledAt is not { } at || at <= Now()) && !_running.ContainsKey(i.Id);
 
     public void Pause(DownloadItem item)
     {
@@ -100,6 +154,8 @@ public sealed class DownloadQueue
         item.Status = DownloadStatus.Queued;
         Save(item);
         Pump();
+        // A paused item can still have a start time ahead.
+        if (item.ScheduledAt != null) ArmScheduleTimer();
     }
 
     public void Cancel(DownloadItem item)
@@ -123,6 +179,7 @@ public sealed class DownloadQueue
         item.Percent = 0;
         item.StageText = "";
         item.HiddenFromQueue = false;
+        item.ScheduledAt = null;
         item.Status = DownloadStatus.Queued;
         Save(item);
         Pump();
@@ -179,7 +236,7 @@ public sealed class DownloadQueue
     {
         while (_running.Count < Math.Max(1, MaxConcurrent))
         {
-            var next = Items.FirstOrDefault(i => i.Status == DownloadStatus.Queued && !_running.ContainsKey(i.Id));
+            var next = Items.FirstOrDefault(IsReady);
             if (next is null) break;
             Start(next);
         }
@@ -194,6 +251,7 @@ public sealed class DownloadQueue
         item.StageText = "Starting";
         item.IsIndeterminate = true;
         item.Error = null;
+        item.ScheduledAt = null;
         item.LogPath ??= Path.Combine(_paths.LogsDir, item.Id + ".log");
         Save(item);
 
@@ -239,7 +297,13 @@ public sealed class DownloadQueue
                     }, null);
                 },
                 line => { lock (logLock) log.WriteLine(line); },
-                run.Cts.Token);
+                run.Cts.Token,
+                meta => _ui.Post(_ =>
+                {
+                    if (!_running.ContainsKey(item.Id)) return;
+                    item.ApplyMeta(meta);
+                    Save(item);
+                }, null));
         }
         catch (OperationCanceledException)
         {

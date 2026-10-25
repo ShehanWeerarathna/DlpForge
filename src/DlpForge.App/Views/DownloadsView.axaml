@@ -19,6 +19,8 @@
                      Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Active}" />
         <RadioButton Classes="tab" GroupName="qf" Content="{Binding QueuedLabel}"
                      Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Queued}" />
+        <RadioButton x:Name="TabScheduled" Classes="tab" GroupName="qf" Content="{Binding ScheduledLabel}" IsVisible="{Binding HasScheduled}"
+                     Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Scheduled}" />
         <RadioButton Classes="tab" GroupName="qf" Content="{Binding CompletedLabel}"
                      Command="{Binding SetFilterCommand}" CommandParameter="{x:Static vm:QueueFilter.Completed}" />
         <RadioButton Classes="tab" GroupName="qf" Content="{Binding FailedLabel}"
@@ -46,6 +48,8 @@
           <MenuItem Header="Resume" Command="{Binding ResumeCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanResume, FallbackValue=False}" />
           <MenuItem Header="Cancel" Command="{Binding CancelCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanCancel, FallbackValue=False}" />
           <MenuItem Header="Download again" Command="{Binding RetryCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanRetry, FallbackValue=False}" />
+          <MenuItem Header="Schedule…" Command="{Binding ScheduleCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanSchedule, FallbackValue=False}" />
+          <MenuItem Header="Start now" Command="{Binding StartNowCommand}" CommandParameter="{Binding Selected}" IsVisible="{Binding Selected.CanStartNow, FallbackValue=False}" />
           <Separator />
           <MenuItem Header="View log" Command="{Binding ViewLogCommand}" CommandParameter="{Binding Selected}" />
           <MenuItem Header="Open link in browser" Command="{Binding OpenLinkCommand}" CommandParameter="{Binding Selected}" />
@@ -72,6 +76,7 @@
                   <TextBlock Classes="subtle" Text="{Binding StatusText}" FontWeight="SemiBold" />
                   <TextBlock Classes="subtle" Text="{Binding TypeText}" />
                   <TextBlock Classes="subtle" Text="{Binding StageText}" IsVisible="{Binding IsActive}" />
+                  <TextBlock Classes="subtle accent" Text="{Binding ScheduleText}" IsVisible="{Binding IsScheduled}" />
                   <TextBlock Classes="subtle" Text="{Binding SizeText}" />
                   <TextBlock Classes="subtle" Text="{Binding SpeedText}" />
                   <TextBlock Classes="subtle" Text="{Binding EtaText}" />
@@ -79,7 +84,7 @@
                 <ProgressBar Value="{Binding Percent}" IsIndeterminate="{Binding IsIndeterminate}" Maximum="100" MinHeight="4"
                              IsVisible="{Binding !IsFailed}" />
                 <SelectableTextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" FontSize="12"
-                                     TextWrapping="Wrap" MaxLines="3"
+                                     TextWrapping="Wrap" MaxLines="4"
                                      IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
               </StackPanel>
 
@@ -88,6 +93,10 @@
                         Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).OpenFileCommand}" CommandParameter="{Binding}" />
                 <Button Classes="icon" Content="Folder" IsVisible="{Binding HasFile}"
                         Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).ShowInFolderCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Start now" IsVisible="{Binding IsScheduled}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).StartNowCommand}" CommandParameter="{Binding}" />
+                <Button Classes="icon" Content="Schedule" IsVisible="{Binding CanSchedule}"
+                        Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).ScheduleCommand}" CommandParameter="{Binding}" />
                 <Button Classes="icon" Content="Pause" IsVisible="{Binding CanPause}"
                         Command="{Binding $parent[UserControl].((vm:DownloadsViewModel)DataContext).PauseCommand}" CommandParameter="{Binding}" />
                 <Button Classes="icon" Content="Resume" IsVisible="{Binding CanResume}"

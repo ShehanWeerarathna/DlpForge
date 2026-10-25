@@ -8,6 +8,7 @@ public abstract record OutputLine
 {
     public sealed record Progress(DownloadProgress Value) : OutputLine;
     public sealed record FinalPath(string Path) : OutputLine;
+    public sealed record Meta(MediaMeta Value) : OutputLine;
     public sealed record Error(string Message) : OutputLine;
     public sealed record Text(string Line) : OutputLine;
 }
@@ -29,6 +30,11 @@ public static class OutputParser
                 Stage = "processing",
                 Postprocessor = name is "" or "NA" ? null : name,
             });
+        }
+        if (line.StartsWith(ArgumentBuilder.MetaMarker, StringComparison.Ordinal))
+        {
+            var meta = MediaMeta.Parse(line[ArgumentBuilder.MetaMarker.Length..]);
+            return meta is null ? new OutputLine.Text(line) : new OutputLine.Meta(meta);
         }
         if (line.StartsWith(ArgumentBuilder.FileMarker, StringComparison.Ordinal))
             return new OutputLine.FinalPath(line[ArgumentBuilder.FileMarker.Length..].Trim());

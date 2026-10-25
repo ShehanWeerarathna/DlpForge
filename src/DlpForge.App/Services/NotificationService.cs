@@ -22,7 +22,12 @@ public static class NotificationService
             ToastNotificationManagerCompat.OnActivated += e =>
             {
                 var args = ToastArguments.Parse(e.Argument);
-                if (!args.TryGetValue("path", out var path)) return;
+                if (!args.TryGetValue("path", out var path))
+                {
+                    // A click on the notification itself brings DlpForge back, also from the tray.
+                    Dispatcher.UIThread.Post(() => TrayService.ShowMainWindow());
+                    return;
+                }
                 if (args.TryGetValue("action", out var action) && action == "folder") Shell.ShowInFolder(path);
                 else Shell.Open(path);
             };
@@ -75,6 +80,24 @@ public static class NotificationService
             }
         }
         ShowInApp("Download failed", title, error: true);
+    }
+
+    /// <summary>A plain Windows notification, for when the window may be hidden (for example in the tray).</summary>
+    public static void Info(string title, string message)
+    {
+        if (_toastsAvailable)
+        {
+            try
+            {
+                new ToastContentBuilder().AddText(title).AddText(message).Show();
+                return;
+            }
+            catch (Exception)
+            {
+                _toastsAvailable = false;
+            }
+        }
+        ShowInApp(title, message);
     }
 
     public static void ShowInApp(string title, string message, bool error = false)

@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DlpForge.App.ViewModels"
+             x:Class="DlpForge.App.Views.TerminalView"
+             x:DataType="vm:TerminalViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+    <!-- Command line -->
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+      <TextBlock Text="yt-dlp" FontFamily="Cascadia Mono,Consolas,monospace" FontWeight="SemiBold" VerticalAlignment="Center" Margin="2,0,10,0" />
+      <TextBox x:Name="CommandBox" Grid.Column="1" Text="{Binding Command}" Height="38" VerticalContentAlignment="Center"
+               FontFamily="Cascadia Mono,Consolas,monospace"
+               PlaceholderText="Arguments, e.g. -F https://… or --flat-playlist --print title https://…">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding RunCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+      <Button x:Name="RunButton" Grid.Column="2" Margin="8,0,0,0" Height="38" Padding="18,0" Classes="accent"
+              VerticalContentAlignment="Center" Content="Run" Command="{Binding RunCommand}" />
+      <Button x:Name="StopButton" Grid.Column="3" Margin="8,0,0,0" Height="38" VerticalContentAlignment="Center"
+              Content="Stop" Command="{Binding StopCommand}" />
+    </Grid>
+
+    <!-- Options -->
+    <WrapPanel Grid.Row="1" Margin="0,10,0,0">
+      <ComboBox MinWidth="240" Margin="0,0,10,6" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}"
+                PlaceholderText="Insert a saved template" ToolTip.Tip="Command templates are managed in Settings" />
+      <CheckBox Content="Add DlpForge's FFmpeg, Deno and cookie options" IsChecked="{Binding UseAppOptions}" Margin="0,0,16,6" />
+      <Button Content="Save as template" Command="{Binding SaveAsTemplateCommand}" Margin="0,0,6,6" />
+    </WrapPanel>
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,10">
+      <TextBlock Classes="subtle" Text="Runs in" VerticalAlignment="Center" Margin="2,0,10,0" />
+      <TextBox Grid.Column="1" Text="{Binding WorkingFolder}" />
+      <Button Grid.Column="2" Margin="8,0,0,0" Content="Browse…" Command="{Binding BrowseFolderCommand}" />
+      <Button Grid.Column="3" Margin="8,0,0,0" Content="Open folder" Command="{Binding OpenFolderCommand}" />
+    </Grid>
+
+    <!-- Output -->
+    <TextBox x:Name="OutputBox" Grid.Row="3" Text="{Binding Output}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+             FontFamily="Cascadia Mono,Consolas,monospace" FontSize="12"
+             PlaceholderText="Output appears here. Up and Down in the command box bring back earlier commands." />
+
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto" Margin="0,8,0,8">
+      <TextBlock Classes="subtle" VerticalAlignment="Center" TextWrapping="Wrap"
+                 Text="Only yt-dlp runs here, never a shell. Files land in the folder above unless you pass -P or -o." />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+        <Button Content="Copy output" Click="OnCopy" />
+        <Button Content="Clear" Command="{Binding ClearCommand}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</UserControl>

@@ -7,6 +7,13 @@ public enum DownloadStatus { Queued, Downloading, Processing, Paused, Completed,
 /// <summary>Quick quality presets shown on the download card.</summary>
 public enum QualityPreset { Best, P2160, P1440, P1080, P720, P480, P360, Custom }
 
+/// <summary>A part of a video, in seconds from the start. Downloaded with yt-dlp's --download-sections.</summary>
+public sealed record TimeRange(double Start, double End)
+{
+    public double Length => End - Start;
+    public string Label => $"{Formatting.Clock(Start)}–{Formatting.Clock(End)}";
+}
+
 /// <summary>Everything needed to build one yt-dlp command line. Stored as JSON in the downloads database.</summary>
 public sealed record DownloadOptions
 {
@@ -25,6 +32,23 @@ public sealed record DownloadOptions
     public bool EmbedChapters { get; init; } = true;
     public bool EmbedSubtitles { get; init; }
     public string SubtitleLanguages { get; init; } = "en.*";
+
+    /// <summary>Download only this part of the video. Each part is queued as its own download.</summary>
+    public TimeRange? Section { get; init; }
+    /// <summary>Re-encode around the cut points so the part starts and ends exactly where asked.</summary>
+    public bool ForceKeyframesAtCuts { get; init; }
+    /// <summary>Also write one file per chapter (--split-chapters).</summary>
+    public bool SplitChapters { get; init; }
+    /// <summary>Replaces the title (file name and embedded metadata). Null keeps the original.</summary>
+    public string? TitleOverride { get; init; }
+    /// <summary>Replaces the artist in the embedded metadata. Null keeps the original.</summary>
+    public string? ArtistOverride { get; init; }
+    /// <summary>SponsorBlock categories to mark as chapters, comma separated. Empty for none.</summary>
+    public string SponsorBlockMark { get; init; } = "";
+    /// <summary>SponsorBlock categories to cut out of the file, comma separated. Empty for none.</summary>
+    public string SponsorBlockRemove { get; init; } = "";
+    /// <summary>Extra yt-dlp arguments, added after DlpForge's own so they win on conflicts.</summary>
+    public string ExtraArguments { get; init; } = "";
 }
 
 public static class Defaults

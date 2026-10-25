@@ -10,7 +10,7 @@ using DlpForge.Core.Queue;
 
 namespace DlpForge.App.ViewModels;
 
-public enum QueueFilter { All, Active, Queued, Completed, Failed }
+public enum QueueFilter { All, Active, Queued, Scheduled, Completed, Failed }
 
 /// <summary>The Downloads screen: the live queue with filter tabs and per-item actions.</summary>
 public sealed partial class DownloadsViewModel : ViewModelBase
@@ -25,6 +25,8 @@ public sealed partial class DownloadsViewModel : ViewModelBase
     [ObservableProperty] private string _allLabel = "All";
     [ObservableProperty] private string _activeLabel = "Active";
     [ObservableProperty] private string _queuedLabel = "Queued";
+    [ObservableProperty] private string _scheduledLabel = "Scheduled";
+    [ObservableProperty] private bool _hasScheduled;
     [ObservableProperty] private string _completedLabel = "Completed";
     [ObservableProperty] private string _failedLabel = "Failed";
     [ObservableProperty] private bool _isEmpty = true;
@@ -46,7 +48,7 @@ public sealed partial class DownloadsViewModel : ViewModelBase
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(DownloadItem.Status) or nameof(DownloadItem.HiddenFromQueue)) Refresh();
+        if (e.PropertyName is nameof(DownloadItem.Status) or nameof(DownloadItem.HiddenFromQueue) or nameof(DownloadItem.ScheduledAt)) Refresh();
     }
 
     partial void OnFilterChanged(QueueFilter value) => Refresh();
@@ -55,6 +57,7 @@ public sealed partial class DownloadsViewModel : ViewModelBase
     {
         QueueFilter.Active => i.IsActive,
         QueueFilter.Queued => i.Status is DownloadStatus.Queued or DownloadStatus.Paused,
+        QueueFilter.Scheduled => i.IsScheduled,
         QueueFilter.Completed => i.Status == DownloadStatus.Completed,
         QueueFilter.Failed => i.Status is DownloadStatus.Failed or DownloadStatus.Cancelled,
         _ => true,
@@ -78,6 +81,8 @@ public sealed partial class DownloadsViewModel : ViewModelBase
         AllLabel = Label("All", QueueFilter.All);
         ActiveLabel = Label("Active", QueueFilter.Active);
         QueuedLabel = Label("Queued", QueueFilter.Queued);
+        ScheduledLabel = Label("Scheduled", QueueFilter.Scheduled);
+        HasScheduled = Queue.Items.Any(i => Matches(i, QueueFilter.Scheduled)) || Filter == QueueFilter.Scheduled;
         CompletedLabel = Label("Completed", QueueFilter.Completed);
         FailedLabel = Label("Failed", QueueFilter.Failed);
     }
@@ -106,6 +111,18 @@ public sealed partial class DownloadsViewModel : ViewModelBase
         if (item.Status == DownloadStatus.Completed) Queue.HideFromQueue(item);
         else Queue.Remove(item);
     }
+
+    /// <summary>Opens the schedule dialog for a queued or paused download.</summary>
+    [RelayCommand]
+    private async Task Schedule(DownloadItem? item)
+    {
+        if (item is null || !item.CanSchedule || Dialogs.MainWindow is not { } owner) return;
+        var result = await ScheduleWindow.Ask(owner, item.Title, item.ScheduledAt);
+        if (result is null || !Queue.Items.Contains(item)) return;
+        Queue.Schedule(item, result.At);
+    }
+
+    [RelayCommand] private void StartNow(DownloadItem? item) { if (item != null) Queue.StartNow(item); }
 
     [RelayCommand] private void PauseAll() => Queue.PauseAll();
     [RelayCommand] private void ResumeAll() => Queue.ResumeAll();

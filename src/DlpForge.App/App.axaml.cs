@@ -28,7 +28,8 @@ public partial class App : Application
 
             var locator = new ToolLocator(paths);
             var http = new HttpClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DlpForge/0.1 (+https://github.com/ShehanWeerarathna)");
+            var version = typeof(App).Assembly.GetName().Version?.ToString(2) ?? "0";
+            http.DefaultRequestHeaders.UserAgent.ParseAdd($"DlpForge/{version} (+https://github.com/ShehanWeerarathna/DlpForge)");
             ImageLoader.Http = http;
 
             var client = new YtDlpClient(locator);
@@ -47,6 +48,13 @@ public partial class App : Application
             {
                 queue.StopAllForExit();
                 queue.FlushAsync().Wait(TimeSpan.FromSeconds(3));
+            };
+
+            var tray = new TrayService(desktop, window, settings, queue);
+            vm.Settings.CloseToTrayChanged += tray.SetEnabled;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainWindowViewModel.StatusText)) tray.SetStatus(vm.StatusText);
             };
 
             queue.Restore();

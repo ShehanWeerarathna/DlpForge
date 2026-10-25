@@ -15,10 +15,12 @@ public static class ProcessRunner
         IEnumerable<string> args,
         Action<string> onStdout,
         Action<string> onStderr,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? workingDirectory = null)
     {
         var psi = new ProcessStartInfo(exe)
         {
+            WorkingDirectory = workingDirectory ?? "",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             RedirectStandardInput = true,

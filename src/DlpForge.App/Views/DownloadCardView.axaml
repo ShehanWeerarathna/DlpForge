@@ -3,6 +3,7 @@
              xmlns:vm="using:DlpForge.App.ViewModels"
              xmlns:m="using:DlpForge.Core.Models"
              xmlns:svc="using:DlpForge.App.Services"
+             xmlns:ctl="using:DlpForge.App.Controls"
              x:Class="DlpForge.App.Views.DownloadCardView"
              x:DataType="vm:DownloadCardViewModel">
 
@@ -15,26 +16,29 @@
           <Image svc:ImageLoader.Url="{Binding Thumbnail}" Stretch="UniformToFill" />
         </Border>
         <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Spacing="6">
-          <TextBlock Text="{Binding Title}" Classes="h2" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+          <Border Classes="chip" HorizontalAlignment="Left" IsVisible="{Binding HasKindLabel}">
+            <TextBlock Text="{Binding KindLabel}" FontSize="11" FontWeight="SemiBold" />
+          </Border>
+          <TextBlock x:Name="CardTitle" Text="{Binding Title}" Classes="h2" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
           <TextBlock Text="{Binding Subtitle}" Classes="subtle" />
           <StackPanel Orientation="Horizontal" Spacing="0" Margin="0,6,0,0">
-            <RadioButton Classes="seg" GroupName="type" Content="Video" IsChecked="{Binding IsVideo, Mode=OneWay}"
+            <RadioButton x:Name="TypeVideo" Classes="seg" GroupName="type" Content="Video" IsChecked="{Binding IsVideo, Mode=OneWay}"
                          Command="{Binding SetTypeCommand}" CommandParameter="video" />
-            <RadioButton Classes="seg" GroupName="type" Content="Audio only" IsChecked="{Binding IsAudio, Mode=OneWay}"
+            <RadioButton x:Name="TypeAudio" Classes="seg" GroupName="type" Content="Audio only" IsChecked="{Binding IsAudio, Mode=OneWay}"
                          Command="{Binding SetTypeCommand}" CommandParameter="audio" />
           </StackPanel>
         </StackPanel>
         <Button Grid.Column="2" VerticalAlignment="Top" Classes="icon" Content="✕" Command="{Binding CloseCommand}" ToolTip.Tip="Close (Esc)" />
       </Grid>
 
-      <ScrollViewer Grid.Row="1" Padding="18,0,18,8">
+      <ScrollViewer x:Name="CardScroll" Grid.Row="1" Padding="18,0,18,8">
         <StackPanel Spacing="14">
 
           <!-- Quality -->
           <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto">
             <TextBlock Text="Quality" VerticalAlignment="Center" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-              <ComboBox MinWidth="200" ItemsSource="{Binding QualityChoices}" SelectedItem="{Binding SelectedQuality}"
+              <ComboBox x:Name="QualityBox" MinWidth="200" ItemsSource="{Binding QualityChoices}" SelectedItem="{Binding SelectedQuality}"
                         IsVisible="{Binding IsVideo}" IsEnabled="{Binding !UseSpecificFormat}" />
               <ComboBox MinWidth="110" ItemsSource="{Binding VideoContainers}" SelectedItem="{Binding VideoContainer}"
                         IsVisible="{Binding IsVideo}" ToolTip.Tip="File type the video is saved as" />
@@ -81,9 +85,9 @@
           <!-- Where -->
           <Grid ColumnDefinitions="140,*,Auto">
             <TextBlock Text="Save to" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" Text="{Binding OutputFolder}" />
+            <TextBox x:Name="FolderBox" Grid.Column="1" Text="{Binding OutputFolder}" />
             <Button x:Name="BrowseButton" Grid.Column="2" Margin="8,0,0,0" Content="Browse…"
-                    Command="{Binding BrowseFolderCommand}" CommandParameter="{Binding #BrowseButton}" />
+                    Command="{Binding BrowseFolderCommand}" />
           </Grid>
           <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto">
             <TextBlock Text="File name" VerticalAlignment="Center" />
@@ -91,6 +95,18 @@
             <TextBlock Grid.Row="1" Grid.Column="1" Classes="subtle" Margin="2,4,0,0" TextTrimming="CharacterEllipsis">
               <Run Text="Preview: " /><Run Text="{Binding FilenamePreview}" />
             </TextBlock>
+          </Grid>
+
+          <!-- Edit metadata -->
+          <Grid ColumnDefinitions="140,*,Auto" RowDefinitions="Auto,Auto" RowSpacing="8" IsVisible="{Binding IsSingle}">
+            <TextBlock Text="Title" VerticalAlignment="Center" />
+            <TextBox x:Name="EditTitleBox" Grid.Column="1" Text="{Binding EditTitle}"
+                     ToolTip.Tip="Changes the file name and the title written into the file" />
+            <Button Grid.Column="2" Grid.RowSpan="2" Margin="8,0,0,0" VerticalAlignment="Center" Content="Reset"
+                    Command="{Binding ResetMetadataCommand}" IsVisible="{Binding IsMetadataEdited}" />
+            <TextBlock Grid.Row="1" Text="Artist" VerticalAlignment="Center" />
+            <TextBox x:Name="EditArtistBox" Grid.Row="1" Grid.Column="1" Text="{Binding EditArtist}"
+                     ToolTip.Tip="Written into the file's metadata (with Embed metadata on)" />
           </Grid>
 
           <!-- Embeds -->
@@ -109,15 +125,106 @@
             </StackPanel>
           </Grid>
 
-          <!-- Playlist items -->
+          <!-- Split and SponsorBlock -->
+          <Grid ColumnDefinitions="140,*">
+            <TextBlock Text="Extras" VerticalAlignment="Top" Margin="0,6,0,0" />
+            <StackPanel Grid.Column="1" Spacing="2">
+              <WrapPanel>
+                <CheckBox x:Name="SponsorBlockBox" Content="SponsorBlock" IsChecked="{Binding UseSponsorBlock}" Margin="0,0,16,0"
+                          ToolTip.Tip="Cut out or mark sponsor segments using the community SponsorBlock database (YouTube only)" />
+                <CheckBox x:Name="SplitChaptersBox" Content="Also save one file per chapter" IsChecked="{Binding SplitChapters}"
+                          IsVisible="{Binding CanSplitChapters}" />
+              </WrapPanel>
+              <TextBlock Classes="subtle" Text="{Binding SponsorBlockSummary}" IsVisible="{Binding UseSponsorBlock}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+
+          <!-- Cut -->
+          <Grid ColumnDefinitions="140,*" IsVisible="{Binding CanCut}">
+            <TextBlock Text="Cut" VerticalAlignment="Top" Margin="0,6,0,0" />
+            <StackPanel Grid.Column="1" Spacing="8">
+              <CheckBox x:Name="CutBox" Content="Download only part of the video" IsChecked="{Binding IsCutEnabled}" />
+              <StackPanel Spacing="8" IsVisible="{Binding IsCutEnabled}">
+                <ctl:TimelineBar x:Name="Timeline" Duration="{Binding Duration}" Start="{Binding CutStart}" End="{Binding CutEnd}"
+                                 Ranges="{Binding TimelineRanges}" Marks="{Binding ChapterMarks}"
+                                 TrackBrush="{DynamicResource PanelBorder}" AccentBrush="{DynamicResource AppAccentBrush}"
+                                 MarkBrush="{DynamicResource SubtleText}" ThumbBrush="{DynamicResource PanelBackground}"
+                                 ToolTip.Tip="Drag the handles. Arrow keys move the end, Shift+arrows the start." />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="From" VerticalAlignment="Center" />
+                  <TextBox x:Name="CutStartBox" Width="90" Text="{Binding CutStartText}" FontFamily="Cascadia Mono,Consolas,monospace" />
+                  <TextBlock Text="to" VerticalAlignment="Center" />
+                  <TextBox x:Name="CutEndBox" Width="90" Text="{Binding CutEndText}" FontFamily="Cascadia Mono,Consolas,monospace" />
+                  <Button x:Name="AddPartButton" Content="Add as part" Command="{Binding AddSegmentCommand}"
+                          ToolTip.Tip="Keep this part and pick another one. Each part becomes its own file." />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding Segments}" IsVisible="{Binding HasSegments}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SegmentViewModel">
+                      <Border Classes="chip" Margin="0,0,6,6" Padding="10,3,4,3">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                          <Button Classes="icon" Padding="6,0" Content="✕" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove this part" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Spacing="2" IsVisible="{Binding HasChapters}">
+                  <TextBlock Classes="subtle" Text="Or tick chapters to download:" />
+                  <ItemsControl ItemsSource="{Binding Chapters}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ChapterViewModel">
+                        <CheckBox IsChecked="{Binding IsChecked}">
+                          <TextBlock><Run Text="{Binding Title}" /><Run Text="   " /><Run Classes="subtle" Text="{Binding Times}" /></TextBlock>
+                        </CheckBox>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <CheckBox Content="Precise cuts (re-encodes around the cut points; slower)" IsChecked="{Binding ForceKeyframes}" />
+                <TextBlock x:Name="CutSummaryText" Classes="subtle" Text="{Binding CutSummary}" TextWrapping="Wrap" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+
+          <!-- Schedule -->
+          <Grid ColumnDefinitions="140,*">
+            <TextBlock Text="Schedule" VerticalAlignment="Top" Margin="0,6,0,0" />
+            <StackPanel Grid.Column="1" Spacing="6">
+              <CheckBox x:Name="ScheduleBox" Content="Start at a set time" IsChecked="{Binding IsScheduled}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsScheduled}">
+                <DatePicker SelectedDate="{Binding ScheduleDate}" />
+                <TimePicker SelectedTime="{Binding ScheduleTime}" MinuteIncrement="5" />
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+
+          <!-- Extra arguments -->
+          <Grid ColumnDefinitions="140,Auto,*" RowDefinitions="Auto,Auto">
+            <TextBlock Text="Extra arguments" VerticalAlignment="Center" />
+            <ComboBox x:Name="TemplateBox" Grid.Column="1" MinWidth="200" Margin="0,0,8,0" ItemsSource="{Binding CommandTemplates}"
+                      SelectedItem="{Binding SelectedTemplate}" PlaceholderText="Saved templates"
+                      ToolTip.Tip="Command templates are managed in Settings" />
+            <TextBox x:Name="ExtraArgsBox" Grid.Column="2" Text="{Binding ExtraArguments}" FontFamily="Cascadia Mono,Consolas,monospace"
+                     PlaceholderText="Any yt-dlp options, e.g. --limit-rate 2M" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="subtle" Margin="2,4,0,0" TextWrapping="Wrap"
+                       IsVisible="{Binding HasExtraArguments}"
+                       Text="Added after DlpForge's own options, so they win where the two disagree." />
+          </Grid>
+
+          <!-- List items -->
           <StackPanel Spacing="8" IsVisible="{Binding IsPlaylist}">
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Classes="h2" VerticalAlignment="Center">
                 <Run Text="Items" /><Run Text="  " /><Run Classes="subtle" Text="{Binding CheckedCount}" /><Run Classes="subtle" Text=" selected" />
               </TextBlock>
               <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                <Button Classes="icon" Content="All" Command="{Binding SelectAllCommand}" />
-                <Button Classes="icon" Content="None" Command="{Binding SelectNoneCommand}" />
+                <Button x:Name="SelectAllButton" Classes="icon" Content="All" Command="{Binding SelectAllCommand}" />
+                <Button x:Name="SelectNoneButton" Classes="icon" Content="None" Command="{Binding SelectNoneCommand}" />
                 <Button Classes="icon" Content="Invert" Command="{Binding InvertSelectionCommand}" />
                 <Button Classes="icon" Content="Tick highlighted (Space)" Command="{Binding ToggleHighlightedCommand}"
                         CommandParameter="{Binding #EntryList.SelectedItems}"
@@ -156,17 +263,11 @@
       <!-- Actions -->
       <Border Grid.Row="2" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="0,1,0,0" Padding="18,12">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" VerticalAlignment="Center" TextWrapping="Wrap" />
+          <TextBlock x:Name="CardError" Text="{Binding Error}" Foreground="{DynamicResource ErrorText}" VerticalAlignment="Center" TextWrapping="Wrap" />
           <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <Button Content="Cancel" Command="{Binding CloseCommand}" />
-            <Button Classes="accent" Padding="20,6" Command="{Binding DownloadCommand}" IsDefault="True">
-              <Panel>
-                <TextBlock Text="Download" IsVisible="{Binding IsSingle}" />
-                <TextBlock IsVisible="{Binding IsPlaylist}">
-                  <Run Text="Download " /><Run Text="{Binding CheckedCount}" /><Run Text=" items" />
-                </TextBlock>
-              </Panel>
-            </Button>
+            <Button x:Name="CardDownloadButton" Classes="accent" Padding="20,6" Command="{Binding DownloadCommand}" IsDefault="True"
+                    Content="{Binding DownloadLabel}" />
           </StackPanel>
         </Grid>
       </Border>

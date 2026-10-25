@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using Avalonia.Controls;
-using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DlpForge.App.Services;
@@ -14,28 +12,45 @@ public sealed record Choice<T>(T Value, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>The card shown after inspecting a link: what it is, how to download it, and (for playlists) which items.</summary>
+/// <summary>Where the card's content came from. Lists (playlist, search, import) show the item grid.</summary>
+public enum CardSource { Link, Playlist, Search, Import }
+
+/// <summary>The card shown after inspecting a link: what it is, how to download it, and (for lists) which items.</summary>
 public sealed partial class DownloadCardViewModel : ViewModelBase
 {
     private readonly AppServices _services;
     private readonly Action<bool> _close;
     private bool _folderEdited;
+    private bool _syncingCutText;
 
     public MediaInfo Info { get; }
+    public CardSource Source { get; }
     public string Title => Info.Title;
     public string? Thumbnail => Info.Thumbnail ?? Info.Entries.FirstOrDefault()?.Thumbnail;
     public bool IsPlaylist => Info.IsPlaylist;
     public bool IsSingle => !Info.IsPlaylist;
+
+    /// <summary>Only a real playlist gets the playlist file name template; search results and imports are separate videos.</summary>
+    public bool UsesPlaylistTemplate => Source == CardSource.Playlist;
+
+    public string KindLabel => Source switch
+    {
+        CardSource.Search => "Search results",
+        CardSource.Import => "Imported list",
+        CardSource.Playlist => "Playlist",
+        _ => "",
+    };
+    public bool HasKindLabel => KindLabel.Length > 0;
 
     public string Subtitle
     {
         get
         {
             var parts = new List<string>();
-            if (!string.IsNullOrEmpty(Info.Uploader)) parts.Add(Info.Uploader);
-            if (Info.IsPlaylist) parts.Add($"{Info.Entries.Count} items");
+            if (!string.IsNullOrEmpty(Info.Uploader) && Source != CardSource.Search) parts.Add(Info.Uploader);
+            if (Info.IsPlaylist) parts.Add(Info.Entries.Count == 1 ? "1 item" : $"{Info.Entries.Count} items");
             else if (Formatting.Duration(Info.DurationSeconds) is { Length: > 0 } d) parts.Add(d);
-            if (!string.IsNullOrEmpty(Info.Extractor)) parts.Add(Info.Extractor);
+            if (!string.IsNullOrEmpty(Info.Extractor) && Source is CardSource.Link or CardSource.Playlist) parts.Add(Info.Extractor);
             if (Info.ChapterCount > 0) parts.Add($"{Info.ChapterCount} chapters");
             return string.Join("  ·  ", parts);
         }
@@ -91,13 +106,174 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
         .OrderByDescending(f => f.Height ?? 0)
         .ThenByDescending(f => f.Tbr ?? 0);
 
+    // ---- Edit metadata (single videos) ----
+
+    private readonly string _originalArtist;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(FilenamePreview), nameof(IsMetadataEdited))] private string _editTitle;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(IsMetadataEdited))] private string _editArtist;
+    public bool IsMetadataEdited => TitleOverride != null || ArtistOverride != null;
+    private string? TitleOverride => IsSingle && !string.IsNullOrWhiteSpace(EditTitle) && EditTitle.Trim() != Info.Title ? EditTitle.Trim() : null;
+    private string? ArtistOverride => IsSingle && !string.IsNullOrWhiteSpace(EditArtist) && EditArtist.Trim() != _originalArtist ? EditArtist.Trim() : null;
+
+    [RelayCommand]
+    private void ResetMetadata()
+    {
+        EditTitle = Info.Title;
+        EditArtist = _originalArtist;
+    }
+
+    // ---- Cut (single videos with a known length) ----
+
+    public double Duration => Info.DurationSeconds ?? 0;
+    public bool CanCut => IsSingle && Duration > 1;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(CutSummary), nameof(DownloadLabel), nameof(FilenamePreview))] private bool _isCutEnabled;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(CutSummary), nameof(DownloadLabel), nameof(FilenamePreview))] private double _cutStart;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(CutSummary), nameof(DownloadLabel), nameof(FilenamePreview))] private double _cutEnd;
+    [ObservableProperty] private string _cutStartText = "0:00";
+    [ObservableProperty] private string _cutEndText = "0:00";
+    [ObservableProperty] private bool _forceKeyframes;
+    public ObservableCollection<SegmentViewModel> Segments { get; } = [];
+    public ObservableCollection<ChapterViewModel> Chapters { get; } = [];
+    public bool HasChapters => Chapters.Count > 0;
+    public bool HasSegments => Segments.Count > 0;
+    public IReadOnlyList<double> ChapterMarks => Info.Chapters.Select(c => c.Start).Where(s => s > 0).ToList();
+
+    /// <summary>Parts drawn on the timeline besides the one being edited.</summary>
+    public IReadOnlyList<TimeRange> TimelineRanges =>
+        Segments.Select(s => s.Range).Concat(Chapters.Where(c => c.IsChecked).Select(c => c.Chapter.Range)).ToList();
+
+    /// <summary>
+    /// The parts to download: everything highlighted on the timeline. That is the added parts, the ticked
+    /// chapters, and the range being edited, unless it repeats an added part or is still the whole video
+    /// while other parts are picked.
+    /// </summary>
+    public IReadOnlyList<(TimeRange Range, string Label)> Parts
+    {
+        get
+        {
+            if (!CanCut || !IsCutEnabled) return [];
+            var parts = Segments.Select(s => (s.Range, s.Range.Label))
+                .Concat(Chapters.Where(c => c.IsChecked).Select(c => (c.Chapter.Range, $"{c.Chapter.Number:00} {c.Chapter.Title}")))
+                .ToList();
+            var current = new TimeRange(CutStart, CutEnd);
+            bool whole = CutStart <= 0 && CutEnd >= Duration;
+            if (CutEnd > CutStart && !parts.Any(p => p.Range == current) && (parts.Count == 0 || !whole))
+                parts.Add((current, current.Label));
+            return parts;
+        }
+    }
+
+    public string CutSummary
+    {
+        get
+        {
+            var parts = Parts;
+            if (parts.Count == 0) return "Pick a part with the handles or the boxes.";
+            if (parts.Count == 1)
+                return $"Downloads {parts[0].Range.Label} ({Formatting.Clock(parts[0].Range.Length)} long) as its own file.";
+            return $"Downloads {parts.Count} parts, each as its own file ({Formatting.Clock(parts.Sum(p => p.Range.Length))} in total).";
+        }
+    }
+
+    partial void OnCutStartChanged(double value) => SyncCutText();
+    partial void OnCutEndChanged(double value) => SyncCutText();
+
+    private void SyncCutText()
+    {
+        if (_syncingCutText) return;
+        _syncingCutText = true;
+        CutStartText = Formatting.Clock(CutStart);
+        CutEndText = Formatting.Clock(CutEnd);
+        _syncingCutText = false;
+    }
+
+    partial void OnCutStartTextChanged(string value)
+    {
+        if (_syncingCutText || Formatting.ParseClock(value) is not double s) return;
+        _syncingCutText = true;
+        CutStart = Math.Clamp(s, 0, Duration);
+        _syncingCutText = false;
+    }
+
+    partial void OnCutEndTextChanged(string value)
+    {
+        if (_syncingCutText || Formatting.ParseClock(value) is not double s) return;
+        _syncingCutText = true;
+        CutEnd = Math.Clamp(s, 0, Duration);
+        _syncingCutText = false;
+    }
+
+    [RelayCommand]
+    private void AddSegment()
+    {
+        if (CutEnd <= CutStart)
+        {
+            Error = "The end of a part must be after its start.";
+            return;
+        }
+        var range = new TimeRange(CutStart, CutEnd);
+        if (Segments.Any(s => s.Range == range)) return;
+        Segments.Add(new SegmentViewModel(range, RemoveSegment));
+        Error = null;
+        CutChanged();
+    }
+
+    private void RemoveSegment(SegmentViewModel s)
+    {
+        Segments.Remove(s);
+        CutChanged();
+    }
+
+    private void CutChanged()
+    {
+        OnPropertyChanged(nameof(TimelineRanges));
+        OnPropertyChanged(nameof(HasSegments));
+        OnPropertyChanged(nameof(CutSummary));
+        OnPropertyChanged(nameof(DownloadLabel));
+        OnPropertyChanged(nameof(FilenamePreview));
+    }
+
+    // ---- Split, SponsorBlock ----
+
+    [ObservableProperty] private bool _splitChapters;
+    public bool CanSplitChapters => !IsSingle || Info.ChapterCount > 0;
+    [ObservableProperty] private bool _useSponsorBlock;
+    public string SponsorBlockSummary { get; }
+
+    // ---- Schedule ----
+
+    [ObservableProperty] private bool _isScheduled;
+    [ObservableProperty] private DateTimeOffset? _scheduleDate;
+    [ObservableProperty] private TimeSpan? _scheduleTime;
+
+    public DateTimeOffset? ScheduledAt =>
+        IsScheduled && ScheduleDate is { } d && ScheduleTime is { } t
+            ? new DateTimeOffset(d.Date + t, TimeZoneInfo.Local.GetUtcOffset(d.Date + t))
+            : null;
+
+    // ---- Extra arguments ----
+
+    public IReadOnlyList<CommandTemplate> CommandTemplates { get; }
+    [ObservableProperty] private CommandTemplate? _selectedTemplate;
+    [ObservableProperty] private string _extraArguments = "";
+    public bool HasExtraArguments => !string.IsNullOrWhiteSpace(ExtraArguments);
+
+    partial void OnSelectedTemplateChanged(CommandTemplate? value)
+    {
+        if (value != null) ExtraArguments = value.Arguments;
+    }
+
+    partial void OnExtraArgumentsChanged(string value) => OnPropertyChanged(nameof(HasExtraArguments));
+
+    // ---- File name ----
+
     public string FilenamePreview
     {
         get
         {
             var values = new Dictionary<string, string>(TemplatePreview.SampleValues)
             {
-                ["title"] = Info.IsPlaylist ? Info.Entries.FirstOrDefault()?.Title ?? "Title" : Info.Title,
+                ["title"] = Info.IsPlaylist ? Info.Entries.FirstOrDefault()?.Title ?? "Title" : EditTitle,
                 ["id"] = Info.IsPlaylist ? Info.Entries.FirstOrDefault()?.Id ?? "id" : Info.Id,
                 ["ext"] = IsAudio ? (AudioFormat == "best" ? "m4a" : AudioFormat) : VideoContainer,
                 ["uploader"] = Info.Uploader ?? "Uploader",
@@ -106,17 +282,30 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
                 ["playlist_title"] = Info.Title,
                 ["playlist_index"] = "1",
             };
-            return TemplatePreview.Render(FilenameTemplate, values);
+            var template = Parts is { Count: > 0 } parts ? ArgumentBuilder.AppendToTemplate(FilenameTemplate, $" ({parts[0].Label})") : FilenameTemplate;
+            return TemplatePreview.Render(template, values);
         }
     }
 
-    // Playlist selection
-    public ObservableCollection<PlaylistEntryViewModel> Entries { get; } = [];
-    [ObservableProperty] private int _checkedCount;
+    // ---- List selection ----
 
-    public DownloadCardViewModel(MediaInfo info, AppServices services, Action<bool> close)
+    public ObservableCollection<PlaylistEntryViewModel> Entries { get; } = [];
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(DownloadLabel))] private int _checkedCount;
+
+    public string DownloadLabel
+    {
+        get
+        {
+            if (IsPlaylist) return CheckedCount == 1 ? "Download 1 item" : $"Download {CheckedCount} items";
+            var n = Parts.Count;
+            return n > 1 ? $"Download {n} parts" : n == 1 ? "Download part" : "Download";
+        }
+    }
+
+    public DownloadCardViewModel(MediaInfo info, AppServices services, Action<bool> close, CardSource source = CardSource.Link)
     {
         Info = info;
+        Source = info.IsPlaylist && source == CardSource.Link ? CardSource.Playlist : source;
         _services = services;
         _close = close;
 
@@ -126,16 +315,47 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
         _audioFormat = s.DefaultAudioFormat;
         _videoContainer = s.DefaultVideoContainer;
         _outputFolder = _isAudio ? s.AudioFolder : s.VideoFolder;
-        _filenameTemplate = info.IsPlaylist ? s.PlaylistFilenameTemplate : s.FilenameTemplate;
+        _filenameTemplate = UsesPlaylistTemplate ? s.PlaylistFilenameTemplate : s.FilenameTemplate;
         _embedThumbnail = s.EmbedThumbnail;
         _embedMetadata = s.EmbedMetadata;
         _embedChapters = s.EmbedChapters;
         _embedSubtitles = s.EmbedSubtitles;
         _subtitleLanguages = s.SubtitleLanguages;
 
+        _editTitle = info.Title;
+        _originalArtist = info.Artist ?? info.Uploader ?? "";
+        _editArtist = _originalArtist;
+
+        _cutEnd = Duration;
+        _cutEndText = Formatting.Clock(Duration);
+        foreach (var c in info.Chapters)
+        {
+            var vm = new ChapterViewModel(c);
+            vm.PropertyChanged += (_, _) => CutChanged();
+            Chapters.Add(vm);
+        }
+
+        _useSponsorBlock = s.SponsorBlockByDefault;
+        var (mark, remove) = SponsorBlock.ToArguments(s.SponsorBlockActions);
+        SponsorBlockSummary = (mark, remove) switch
+        {
+            ("", "") => "No categories are set up. Choose them in Settings > SponsorBlock.",
+            _ => string.Join("  ·  ", new[] { remove.Length > 0 ? "Removes " + remove.Replace(",", ", ") : null,
+                                              mark.Length > 0 ? "Marks " + mark.Replace(",", ", ") : null }.Where(x => x != null)),
+        };
+
+        // Default schedule: the next full hour.
+        var next = DateTime.Now.AddHours(1);
+        _scheduleDate = new DateTimeOffset(next.Date);
+        _scheduleTime = new TimeSpan(next.Hour, 0, 0);
+
+        CommandTemplates = s.CommandTemplates.ToList();
+
+        // Search results start unticked: the user picks what they want. Playlists and imports start ticked.
+        bool tick = Source != CardSource.Search;
         foreach (var e in info.Entries)
         {
-            var vm = new PlaylistEntryViewModel(e);
+            var vm = new PlaylistEntryViewModel(e) { IsChecked = tick };
             vm.PropertyChanged += (_, a) => { if (a.PropertyName == nameof(PlaylistEntryViewModel.IsChecked)) UpdateChecked(); };
             Entries.Add(vm);
         }
@@ -169,17 +389,9 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
     private void SetType(string type) => IsAudio = type == "audio";
 
     [RelayCommand]
-    private async Task BrowseFolder(Control? anchor)
+    private async Task BrowseFolder()
     {
-        var top = anchor is null ? null : TopLevel.GetTopLevel(anchor);
-        if (top is null) return;
-        var start = await top.StorageProvider.TryGetFolderFromPathAsync(OutputFolder);
-        var result = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "Choose download folder",
-            SuggestedStartLocation = start,
-        });
-        if (result.FirstOrDefault()?.TryGetLocalPath() is { } path)
+        if (await Dialogs.PickFolderAsync("Choose download folder", OutputFolder) is { } path)
         {
             OutputFolder = path;
             _folderEdited = true;
@@ -215,26 +427,67 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
             Error = "Choose a download folder first.";
             return;
         }
+        if (IsScheduled && (ScheduledAt is not { } at || at <= DateTimeOffset.Now))
+        {
+            Error = "The start time has passed. Pick a later time, or untick \"Start at a set time\".";
+            return;
+        }
+        var parts = Parts;
+        if (CanCut && IsCutEnabled && parts.Count == 0)
+        {
+            Error = "Pick the part to download: the end must be after the start.";
+            return;
+        }
 
         var options = BuildOptions();
+        RememberChoices(options);
         var queue = _services.Queue;
+        var when = ScheduledAt;
         if (IsSingle)
         {
-            queue.Enqueue(Info.Url, Info.Title, options, Thumbnail, Info.Uploader, Info.DurationSeconds);
+            var title = TitleOverride ?? Info.Title;
+            if (parts.Count == 0)
+            {
+                queue.Enqueue(Info.Url, title, options, Thumbnail, Info.Uploader, Info.DurationSeconds, when);
+            }
+            else
+            {
+                foreach (var (range, label) in parts)
+                {
+                    var perPart = options with
+                    {
+                        Section = range,
+                        FilenameTemplate = ArgumentBuilder.AppendToTemplate(options.FilenameTemplate, $" ({label})"),
+                    };
+                    queue.Enqueue(Info.Url, $"{title} ({label})", perPart, Thumbnail, Info.Uploader, range.Length, when);
+                }
+            }
         }
         else
         {
             foreach (var e in Entries.Where(e => e.IsChecked))
             {
-                var perItem = options with
-                {
-                    FilenameTemplate = TemplatePreview.FillPlaylistFields(options.FilenameTemplate, Info.Title, e.Entry.Index),
-                };
+                var perItem = UsesPlaylistTemplate
+                    ? options with { FilenameTemplate = TemplatePreview.FillPlaylistFields(options.FilenameTemplate, Info.Title, e.Entry.Index) }
+                    : options;
                 queue.Enqueue(e.Entry.Url, e.Entry.Title, perItem, e.Entry.Thumbnail, e.Entry.Uploader ?? Info.Uploader,
-                    e.Entry.DurationSeconds);
+                    e.Entry.DurationSeconds, when);
             }
         }
         _close(true);
+    }
+
+    /// <summary>Saves what was picked, for quick download and imports.</summary>
+    private void RememberChoices(DownloadOptions options)
+    {
+        _services.Settings.LastOptions = options with
+        {
+            Section = null,
+            TitleOverride = null,
+            ArtistOverride = null,
+            FilenameTemplate = _services.Settings.FilenameTemplate,
+        };
+        _services.SaveSettings();
     }
 
     [RelayCommand]
@@ -243,6 +496,7 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
     internal DownloadOptions BuildOptions()
     {
         bool custom = UseSpecificFormat && SelectedFormat != null && IsSingle;
+        var (mark, remove) = UseSponsorBlock ? SponsorBlock.ToArguments(_services.Settings.SponsorBlockActions) : ("", "");
         return new DownloadOptions
         {
             Type = IsAudio ? DownloadType.Audio : DownloadType.Video,
@@ -257,6 +511,13 @@ public sealed partial class DownloadCardViewModel : ViewModelBase
             EmbedChapters = EmbedChapters,
             EmbedSubtitles = EmbedSubtitles && !IsAudio,
             SubtitleLanguages = SubtitleLanguages,
+            ForceKeyframesAtCuts = IsCutEnabled && ForceKeyframes,
+            SplitChapters = SplitChapters && CanSplitChapters,
+            TitleOverride = TitleOverride,
+            ArtistOverride = ArtistOverride,
+            SponsorBlockMark = mark,
+            SponsorBlockRemove = remove,
+            ExtraArguments = ExtraArguments.Trim(),
         };
     }
 }
@@ -271,4 +532,24 @@ public sealed partial class PlaylistEntryViewModel(PlaylistEntry entry) : ViewMo
         new[] { Entry.Uploader, Formatting.Duration(Entry.DurationSeconds) }.Where(s => !string.IsNullOrEmpty(s)));
 
     [ObservableProperty] private bool _isChecked = true;
+}
+
+/// <summary>A part added on the cut timeline.</summary>
+public sealed partial class SegmentViewModel(TimeRange range, Action<SegmentViewModel> remove) : ViewModelBase
+{
+    public TimeRange Range { get; } = range;
+    public string Label => $"{Range.Label}  ({Formatting.Clock(Range.Length)})";
+
+    [RelayCommand]
+    private void Remove() => remove(this);
+}
+
+/// <summary>A chapter that can be ticked to download just that chapter.</summary>
+public sealed partial class ChapterViewModel(ChapterInfo chapter) : ViewModelBase
+{
+    public ChapterInfo Chapter { get; } = chapter;
+    public string Title => $"{Chapter.Number}. {Chapter.Title}";
+    public string Times => Chapter.Range.Label;
+
+    [ObservableProperty] private bool _isChecked;
 }

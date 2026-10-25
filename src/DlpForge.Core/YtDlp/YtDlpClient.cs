@@ -11,29 +11,35 @@ public sealed record DownloadResult(int ExitCode, string? FilePath, string? Erro
     public bool Success => ExitCode == 0;
 }
 
-/// <summary>The four things DlpForge asks yt-dlp to do: inspect, download, report its version, update itself.</summary>
+/// <summary>
+/// What DlpForge asks yt-dlp to do: inspect, download, report its version, update itself, and run
+/// a command typed in the terminal.
+/// </summary>
 public sealed class YtDlpClient(ToolLocator tools)
 {
     public ToolLocator Tools => tools;
 
+    /// <summary>Cookies passed to every call. Set from Settings and updated when they change.</summary>
+    public CookieOptions? Cookies { get; set; }
+
     private string Exe => tools.YtDlp
         ?? throw new YtDlpException("yt-dlp is not installed. Open Settings > Tools and click Install.");
 
-    private ArgumentBuilder.ToolOptions ToolOptions => new(tools.FfmpegFolder, tools.Deno);
+    public ArgumentBuilder.CommonOptions CommonOptions => new(tools.FfmpegFolder, tools.Deno, Cookies);
 
     public async Task<MediaInfo> InspectAsync(string url, CancellationToken ct = default)
     {
         var stdout = new StringBuilder();
         var errors = new List<string>();
         int code = await ProcessRunner.RunAsync(
-            Exe, ArgumentBuilder.ForInspect(url, ToolOptions),
+            Exe, ArgumentBuilder.ForInspect(url, CommonOptions),
             line => stdout.AppendLine(line),
             line => { if (line.StartsWith("ERROR:")) errors.Add(line["ERROR:".Length..].Trim()); },
             ct).ConfigureAwait(false);
 
         var json = stdout.ToString().Trim();
         if (code != 0 || json.Length == 0)
-            throw new YtDlpException(errors.LastOrDefault() ?? $"yt-dlp exited with code {code}.");
+            throw new YtDlpException(ErrorHints.Explain(errors.LastOrDefault() ?? $"yt-dlp exited with code {code}."));
         return MediaInfo.Parse(json, url);
     }
 
@@ -42,12 +48,13 @@ public sealed class YtDlpClient(ToolLocator tools)
         DownloadOptions options,
         Action<DownloadProgress> onProgress,
         Action<string> onLog,
-        CancellationToken ct)
+        CancellationToken ct,
+        Action<MediaMeta>? onMeta = null)
     {
         string? finalPath = null;
         string? lastError = null;
-        var args = ArgumentBuilder.ForDownload(url, options, ToolOptions);
-        onLog("> yt-dlp " + string.Join(' ', args.Select(Quote)));
+        var args = ArgumentBuilder.ForDownload(url, options, CommonOptions);
+        onLog("> yt-dlp " + CommandLine.Join(args));
 
         void Handle(string line)
         {
@@ -57,6 +64,10 @@ public sealed class YtDlpClient(ToolLocator tools)
                     onProgress(p.Value);
                     // Keep logs readable: only log stage changes, not every progress tick.
                     if (p.Value.Stage != "downloading") onLog(line);
+                    break;
+                case OutputLine.Meta m:
+                    onMeta?.Invoke(m.Value);
+                    onLog(line);
                     break;
                 case OutputLine.FinalPath f:
                     finalPath = f.Path;
@@ -74,7 +85,7 @@ public sealed class YtDlpClient(ToolLocator tools)
 
         int code = await ProcessRunner.RunAsync(Exe, args, Handle, Handle, ct).ConfigureAwait(false);
         onLog($"[dlpforge] yt-dlp exited with code {code}");
-        return new DownloadResult(code, finalPath, code == 0 ? null : lastError ?? $"yt-dlp exited with code {code}.");
+        return new DownloadResult(code, finalPath, code == 0 ? null : ErrorHints.Explain(lastError ?? $"yt-dlp exited with code {code}."));
     }
 
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)
@@ -86,6 +97,15 @@ public sealed class YtDlpClient(ToolLocator tools)
     /// <summary>Runs yt-dlp --update-to: a channel (stable, nightly, master) or channel@tag to roll back.</summary>
     public async Task<int> UpdateAsync(string target, Action<string> onLog, CancellationToken ct = default) =>
         await ProcessRunner.RunAsync(Exe, ["--update-to", target], onLog, onLog, ct).ConfigureAwait(false);
+
+    /// <summary>Runs yt-dlp with arguments typed in the terminal, streaming every output line.</summary>
+    public Task<int> RunTerminalAsync(IReadOnlyList<string> userArgs, bool addCommon, string? workingDirectory,
+        Action<string> onLine, CancellationToken ct)
+    {
+        var args = ArgumentBuilder.ForTerminal(userArgs, addCommon ? CommonOptions : null);
+        if (workingDirectory != null) Directory.CreateDirectory(workingDirectory);
+        return ProcessRunner.RunAsync(Exe, args, onLine, onLine, ct, workingDirectory);
+    }
 
     public static async Task<string?> FirstLineAsync(string exe, string[] args, CancellationToken ct = default)
     {
@@ -102,6 +122,4 @@ public sealed class YtDlpClient(ToolLocator tools)
         }
         return first;
     }
-
-    private static string Quote(string a) => a.Contains(' ') || a.Contains('"') ? "\"" + a.Replace("\"", "\\\"") + "\"" : a;
 }

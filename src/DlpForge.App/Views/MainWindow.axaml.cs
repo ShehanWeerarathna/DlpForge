@@ -74,13 +74,17 @@ public partial class MainWindow : Window
 
         if (e.DataTransfer.TryGetFiles() is { } files)
         {
-            foreach (var f in files)
+            var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().Where(File.Exists).ToList();
+            // A dropped text file is an import list: links, playlists and searches, one per line.
+            if (paths.Count == 1 && LinkParser.IsListFile(paths[0]))
             {
-                if (f.TryGetLocalPath() is { } path && File.Exists(path))
-                {
-                    try { links.AddRange(LinkParser.FromFile(path)); }
-                    catch (IOException) { }
-                }
+                await Vm.ImportFileAsync(paths[0]);
+                return;
+            }
+            foreach (var path in paths)
+            {
+                try { links.AddRange(LinkParser.FromFile(path)); }
+                catch (IOException) { }
             }
         }
         if (links.Count == 0 && e.DataTransfer.TryGetText() is { } text)
