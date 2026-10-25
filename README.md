@@ -36,6 +36,12 @@ See [docs/FEATURES.md](docs/FEATURES.md) for what works today and what comes nex
 - Light and dark themes that follow Windows by default.
 - Portable mode.
 
+## Download
+
+Get `DlpForge-<version>-win-x64.zip` from [Releases](https://github.com/ShehanWeerarathna/DlpForge/releases),
+unzip it and run `DlpForge.exe`. It needs Windows 10 or 11 (x64) and nothing else: .NET is built in.
+The exe isn't code-signed yet, so SmartScreen may warn on first start (**More info > Run anyway**).
+
 ## Build and run
 
 Requirements: Windows 10 or 11 (x64) and the [.NET 10 SDK](https://dotnet.microsoft.com/download).
@@ -48,6 +54,19 @@ dotnet test
 
 On first start, open **Settings > Tools** (or click **Install tools** on the banner) to download yt-dlp,
 FFmpeg and Deno into `%LOCALAPPDATA%\DlpForge\tools`. DlpForge also uses copies already on your `PATH`.
+
+To build the single-file release exe (written to `src/DlpForge.App/bin/publish/win-x64`):
+
+```bash
+dotnet publish src/DlpForge.App -c Release -p:PublishProfile=win-x64
+```
+
+### Making a release
+
+1. Set `<Version>` in `Directory.Build.props` and, optionally, write the notes in `docs/releases/v<version>.md`.
+2. Commit, then push a matching tag: `git tag v0.3.0 && git push origin v0.3.0`.
+3. The [Release workflow](.github/workflows/release.yml) runs the tests, builds the zip and creates a
+   **draft** release (0.x versions are marked pre-release). Check it on GitHub and publish it.
 
 ## Project layout
 

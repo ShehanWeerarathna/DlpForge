@@ -1,0 +1,63 @@
+name: Release
+
+# Pushing a tag like v0.3.0 runs the tests, builds DlpForge and creates a draft
+# GitHub release with the Windows zip attached. Check the draft, then publish it.
+# The tag must match <Version> in Directory.Build.props. Release notes come from
+# docs/releases/<tag>.md when that file exists. 0.x versions are marked pre-release.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Check the tag matches the version
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match <Version>$version</Version> in Directory.Build.props"
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Test
+        run: dotnet test -c Release
+
+      - name: Publish
+        run: dotnet publish src/DlpForge.App -c Release -p:PublishProfile=win-x64 -o publish
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = "DlpForge-$env:VERSION-win-x64.zip"
+          New-Item -ItemType Directory pkg | Out-Null
+          Copy-Item publish/DlpForge.exe pkg/
+          Copy-Item LICENSE pkg/LICENSE.txt
+          Compress-Archive pkg/* $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File -Encoding ascii "$zip.sha256"
+          "ZIP=$zip" >> $env:GITHUB_ENV
+
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $ghArgs = @('release', 'create', $tag, $env:ZIP, "$env:ZIP.sha256",
+                      '--draft', '--verify-tag', '--title', "DlpForge $env:VERSION")
+          $notes = "docs/releases/$tag.md"
+          if (Test-Path $notes) { $ghArgs += @('--notes-file', $notes) } else { $ghArgs += '--generate-notes' }
+          if ($env:VERSION -like '0.*' -or $env:VERSION -like '*-*') { $ghArgs += '--prerelease' }
+          gh @ghArgs
